@@ -315,151 +315,10 @@ class Validator(PipelineStep):
         logger.info("validator outputs written under %s", out)
 
     def _render_markdown(self, report: EvalReport) -> str:
-        def fmt(value: Any, spec: str = ".3f") -> str:
-            if value is None:
-                return "-"
-            return format(value, spec)
-
-        lines = [
-            f"# EvalReport - {report.name}",
-            "",
-            f"Config hash: `{report.config_hash[:12]}` - seed {report.seed}",
-            "",
-            "Reading guide: KL/C2ST/wC2ST/MMD lower is better (0.5 = indistinguishable",
-            "for AUCs); ESS/N higher is better; tau/tau_AP/RBO vs the anchor ranking",
-            "higher is better; control p-values < 0.05 mean the arm detects the",
-            "injected regression.",
-            "",
-            "| arm | n | KL | C2ST | wC2ST | MMD | ESS/N | gap | tau | tau 95% CI | tau_AP |"
-            " RBO | PC drop | PC noise | gates |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-        ]
-        for arm, block in report.arms.items():
-            if block.get("skipped"):
-                lines.append(f"| {arm} | {block['n_records']} | skipped |" + " - |" * 12)
-                continue
-            fid, eff, val = block["fidelity"], block["efficiency"], block["validity"]
-            ci = val["tau_ci"]
-            lines.append(
-                f"| {arm} | {block['n_records']} | {fmt(fid['kl'])} | {fmt(fid['c2st_auc'])} "
-                f"| {fmt(fid['wc2st_mean'])} | {fmt(fid['mmd'], '.4f')} "
-                f"| {fmt(eff['ess_ratio'], '.2f')} | {fmt(eff['coverage_gap'], '.2f')} "
-                f"| {fmt(val['tau'])} | [{fmt(ci[0], '.2f')}, {fmt(ci[1], '.2f')}] "
-                f"| {fmt(val['tau_ap'])} | {fmt(val['rbo'], '.2f')} "
-                f"| {fmt(val['controls']['drop_index']['p_value'])} "
-                f"| {fmt(val['controls']['noise']['p_value'])} "
-                f"| {'PASS' if block['gates_passed'] else 'fail'} |"
-            )
-        lines.append("")
-        for arm, block in report.arms.items():
-            if block.get("skipped"):
-                continue
-            eff = block["efficiency"]
-            lines += [
-                f"## {arm}",
-                "",
-                "Dual view (SPEC §8-9): demand-weighted headline "
-                f"nDCG@{self.k} = {fmt(eff['post_stratified_ndcg'])} "
-                f"(unweighted {fmt(eff['unweighted_mean_ndcg'])}, "
-                f"ESS/N {fmt(eff['ess_ratio'], '.2f')}); per-cluster table below; "
-                f"worst clusters: {eff['worst_clusters']}; "
-                f"zero-query clusters: {eff['zero_query_clusters']}.",
-                "",
-                "| cluster | p_hat | n_synth | mean nDCG |",
-                "|---|---|---|---|",
-            ]
-            lines += [
-                f"| {row['cluster']} | {fmt(row['p_hat'])} | {row['n_synth']} "
-                f"| {fmt(row['mean_ndcg'])} |"
-                for row in eff["per_cluster"]
-            ]
-            if block.get("gate_reject_reasons"):
-                lines += ["", f"Gate reject reasons: {block['gate_reject_reasons']}"]
-            lines.append("")
-        return "\n".join(lines)
+        return render_markdown(report, k=self.k)
 
     def _render_figures(self, report: EvalReport, fig_dir: Path) -> None:
-        import matplotlib as mpl
-
-        mpl.use("Agg")
-        import matplotlib.pyplot as plt
-
-        fig_dir.mkdir(parents=True, exist_ok=True)
-        arms = [a for a, b in report.arms.items() if not b.get("skipped")]
-
-        def bars(
-            filename: str, series: dict[str, list[float | None]], title: str, ylabel: str
-        ) -> None:
-            fig, ax = plt.subplots(figsize=(7, 4))
-            x = np.arange(len(arms))
-            width = 0.8 / max(len(series), 1)
-            for i, (label, values) in enumerate(series.items()):
-                heights = [v if v is not None else 0.0 for v in values]
-                ax.bar(x + i * width, heights, width, label=label)
-            ax.set_xticks(x + 0.4 - width / 2)
-            ax.set_xticklabels(arms)
-            ax.set_title(title)
-            ax.set_ylabel(ylabel)
-            ax.legend()
-            fig.tight_layout()
-            fig.savefig(fig_dir / filename)
-            plt.close(fig)
-
-        bars(
-            "fidelity_bars.png",
-            {
-                "KL": [report.arms[a]["fidelity"]["kl"] for a in arms],
-                "C2ST": [report.arms[a]["fidelity"]["c2st_auc"] for a in arms],
-                "wC2ST": [report.arms[a]["fidelity"]["wc2st_mean"] for a in arms],
-            },
-            "Fidelity per arm (lower is better)",
-            "value",
-        )
-        bars(
-            "ess_coverage.png",
-            {
-                "ESS/N": [report.arms[a]["efficiency"]["ess_ratio"] for a in arms],
-                "coverage": [
-                    report.arms[a]["efficiency"]["demand_weighted_coverage"] for a in arms
-                ],
-            },
-            "Efficiency per arm (higher is better)",
-            "ratio",
-        )
-
-        fig, ax = plt.subplots(figsize=(7, 4))
-        taus = [report.arms[a]["validity"]["tau"] for a in arms]
-        los = [report.arms[a]["validity"]["tau_ci"][0] for a in arms]
-        his = [report.arms[a]["validity"]["tau_ci"][1] for a in arms]
-        x = np.arange(len(arms))
-        ax.errorbar(
-            x,
-            taus,
-            yerr=[np.subtract(taus, los), np.subtract(his, taus)],
-            fmt="o",
-            capsize=4,
-        )
-        ax.axhline(self.gates.get("tau", 0.9), linestyle="--", linewidth=1)
-        ax.set_xticks(x)
-        ax.set_xticklabels(arms)
-        ax.set_title("System-ranking agreement (tau vs anchor, bootstrap 95% CI)")
-        ax.set_ylabel("Kendall tau")
-        fig.tight_layout()
-        fig.savefig(fig_dir / "tau_ci.png")
-        plt.close(fig)
-
-        fig, ax = plt.subplots(figsize=(7, 4))
-        reasons: dict[str, int] = {}
-        for block in report.arms.values():
-            for reason, count in block.get("gate_reject_reasons", {}).items():
-                reasons[reason] = reasons.get(reason, 0) + count
-        if reasons:
-            ax.bar(list(reasons.keys()), list(reasons.values()))
-        ax.set_title("Gate reject reasons (pipeline arm)")
-        ax.set_ylabel("count")
-        fig.tight_layout()
-        fig.savefig(fig_dir / "gate_rejects.png")
-        plt.close(fig)
+        render_figures(report, fig_dir, tau_gate=self.gates.get("tau", 0.9))
 
     def to_config(self) -> dict[str, Any]:
         """JSON-safe constructor params."""
@@ -477,3 +336,145 @@ class Validator(PipelineStep):
     def from_config(cls, config: dict[str, Any], resources: Resources) -> Self:
         """Build from a config params block."""
         return cls(resources, **config)
+
+
+def render_markdown(report: EvalReport, k: int) -> str:
+    """Render the report.md content from an EvalReport (used by ``ragsynth report``)."""
+
+    def fmt(value: Any, spec: str = ".3f") -> str:
+        if value is None:
+            return "-"
+        return format(value, spec)
+
+    lines = [
+        f"# EvalReport - {report.name}",
+        "",
+        f"Config hash: `{report.config_hash[:12]}` - seed {report.seed}",
+        "",
+        "Reading guide: KL/C2ST/wC2ST/MMD lower is better (0.5 = indistinguishable",
+        "for AUCs); ESS/N higher is better; tau/tau_AP/RBO vs the anchor ranking",
+        "higher is better; control p-values < 0.05 mean the arm detects the",
+        "injected regression.",
+        "",
+        "| arm | n | KL | C2ST | wC2ST | MMD | ESS/N | gap | tau | tau 95% CI | tau_AP |"
+        " RBO | PC drop | PC noise | gates |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for arm, block in report.arms.items():
+        if block.get("skipped"):
+            lines.append(f"| {arm} | {block['n_records']} | skipped |" + " - |" * 12)
+            continue
+        fid, eff, val = block["fidelity"], block["efficiency"], block["validity"]
+        ci = val["tau_ci"]
+        lines.append(
+            f"| {arm} | {block['n_records']} | {fmt(fid['kl'])} | {fmt(fid['c2st_auc'])} "
+            f"| {fmt(fid['wc2st_mean'])} | {fmt(fid['mmd'], '.4f')} "
+            f"| {fmt(eff['ess_ratio'], '.2f')} | {fmt(eff['coverage_gap'], '.2f')} "
+            f"| {fmt(val['tau'])} | [{fmt(ci[0], '.2f')}, {fmt(ci[1], '.2f')}] "
+            f"| {fmt(val['tau_ap'])} | {fmt(val['rbo'], '.2f')} "
+            f"| {fmt(val['controls']['drop_index']['p_value'])} "
+            f"| {fmt(val['controls']['noise']['p_value'])} "
+            f"| {'PASS' if block['gates_passed'] else 'fail'} |"
+        )
+    lines.append("")
+    for arm, block in report.arms.items():
+        if block.get("skipped"):
+            continue
+        eff = block["efficiency"]
+        lines += [
+            f"## {arm}",
+            "",
+            "Dual view (SPEC §8-9): demand-weighted headline "
+            f"nDCG@{k} = {fmt(eff['post_stratified_ndcg'])} "
+            f"(unweighted {fmt(eff['unweighted_mean_ndcg'])}, "
+            f"ESS/N {fmt(eff['ess_ratio'], '.2f')}); per-cluster table below; "
+            f"worst clusters: {eff['worst_clusters']}; "
+            f"zero-query clusters: {eff['zero_query_clusters']}.",
+            "",
+            "| cluster | p_hat | n_synth | mean nDCG |",
+            "|---|---|---|---|",
+        ]
+        lines += [
+            f"| {row['cluster']} | {fmt(row['p_hat'])} | {row['n_synth']} "
+            f"| {fmt(row['mean_ndcg'])} |"
+            for row in eff["per_cluster"]
+        ]
+        if block.get("gate_reject_reasons"):
+            lines += ["", f"Gate reject reasons: {block['gate_reject_reasons']}"]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def render_figures(report: EvalReport, fig_dir: Path, tau_gate: float) -> None:
+    """Render the four report figures (used by ``ragsynth report``)."""
+    import matplotlib as mpl
+
+    mpl.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    arms = [a for a, b in report.arms.items() if not b.get("skipped")]
+
+    def bars(filename: str, series: dict[str, list[float | None]], title: str, ylabel: str) -> None:
+        fig, ax = plt.subplots(figsize=(7, 4))
+        x = np.arange(len(arms))
+        width = 0.8 / max(len(series), 1)
+        for i, (label, values) in enumerate(series.items()):
+            heights = [v if v is not None else 0.0 for v in values]
+            ax.bar(x + i * width, heights, width, label=label)
+        ax.set_xticks(x + 0.4 - width / 2)
+        ax.set_xticklabels(arms)
+        ax.set_title(title)
+        ax.set_ylabel(ylabel)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(fig_dir / filename)
+        plt.close(fig)
+
+    bars(
+        "fidelity_bars.png",
+        {
+            "KL": [report.arms[a]["fidelity"]["kl"] for a in arms],
+            "C2ST": [report.arms[a]["fidelity"]["c2st_auc"] for a in arms],
+            "wC2ST": [report.arms[a]["fidelity"]["wc2st_mean"] for a in arms],
+        },
+        "Fidelity per arm (lower is better)",
+        "value",
+    )
+    bars(
+        "ess_coverage.png",
+        {
+            "ESS/N": [report.arms[a]["efficiency"]["ess_ratio"] for a in arms],
+            "coverage": [report.arms[a]["efficiency"]["demand_weighted_coverage"] for a in arms],
+        },
+        "Efficiency per arm (higher is better)",
+        "ratio",
+    )
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    taus = [report.arms[a]["validity"]["tau"] for a in arms]
+    los = [report.arms[a]["validity"]["tau_ci"][0] for a in arms]
+    his = [report.arms[a]["validity"]["tau_ci"][1] for a in arms]
+    x = np.arange(len(arms))
+    ax.errorbar(x, taus, yerr=[np.subtract(taus, los), np.subtract(his, taus)], fmt="o", capsize=4)
+    ax.axhline(tau_gate, linestyle="--", linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels(arms)
+    ax.set_title("System-ranking agreement (tau vs anchor, bootstrap 95% CI)")
+    ax.set_ylabel("Kendall tau")
+    fig.tight_layout()
+    fig.savefig(fig_dir / "tau_ci.png")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    reasons: dict[str, int] = {}
+    for block in report.arms.values():
+        for reason, count in block.get("gate_reject_reasons", {}).items():
+            reasons[reason] = reasons.get(reason, 0) + count
+    if reasons:
+        ax.bar(list(reasons.keys()), list(reasons.values()))
+    ax.set_title("Gate reject reasons (pipeline arm)")
+    ax.set_ylabel("count")
+    fig.tight_layout()
+    fig.savefig(fig_dir / "gate_rejects.png")
+    plt.close(fig)

@@ -27,10 +27,22 @@ class MockChatModel:
         self.seed = seed
 
     def complete(self, system: str, user: str, **kwargs: Any) -> str:
-        """Return deterministic templated text for the exchange."""
+        """Return deterministic templated text for the exchange.
+
+        Echoes words from ``[chunk]`` evidence lines when present so that
+        surface-similarity embedders (hashed n-grams) place mock queries
+        near their gold chunks -- keeping the round-trip gate meaningful
+        in fully-offline runs.
+        """
         digest = hashlib.sha256(f"{self.seed}|{system}|{user}".encode()).hexdigest()[:8]
-        tail = " ".join(user.split()[-6:])
-        return f"mock-{digest}: what about {tail}?"
+        chunk_words = [
+            word
+            for line in user.splitlines()
+            if line.startswith("[chunk]")
+            for word in line.split()[1:]
+        ]
+        salient = " ".join(chunk_words[:12]) if chunk_words else " ".join(user.split()[-6:])
+        return f"what about {salient} ({digest})?"
 
     def to_config(self) -> dict[str, Any]:
         """JSON-safe constructor params."""

@@ -19,7 +19,13 @@ import yaml
 from ragsynth.datasets.base import DATASETS, DatasetBundle
 from ragsynth.io.artifacts import ArtifactStore, canonical_json, sha256_hex
 from ragsynth.io.embeddings import EmbeddingStore
-from ragsynth.pipeline.base import STEPS, DemandArtifact, Resources, stable_hash64
+from ragsynth.pipeline.base import (
+    STEPS,
+    DemandArtifact,
+    PipelineState,
+    Resources,
+    stable_hash64,
+)
 from ragsynth.pipeline.pipeline import Pipeline
 
 if TYPE_CHECKING:
@@ -274,6 +280,21 @@ def _train_timestamps(
         logger.warning("demand half_life configured but some queries lack timestamps; no decay")
         return None
     return np.array([q.timestamp.timestamp() for q in queries if q.timestamp is not None])
+
+
+def make_initial_state(config: dict[str, Any]) -> PipelineState:
+    """Seed the run's PipelineState with provenance (config hash, version)."""
+    digest = config_hash(config)
+    name = str(config["ragsynth"].get("name", "ragsynth"))
+    return PipelineState(
+        provenance={
+            "name": name,
+            "seed": int(config["ragsynth"]["seed"]),
+            "config": config,
+            "config_hash": digest,
+            "benchmark_version": f"{name}@{digest[:8]}",
+        }
+    )
 
 
 def build_pipeline(config: dict[str, Any], resources: Resources) -> Pipeline:
