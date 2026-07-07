@@ -52,6 +52,23 @@ def test_load_missing_artifact_raises(tmp_path: Path) -> None:
         store.load_json("absent-artifact")
 
 
+def test_record_file_external_artifact(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    (tmp_path / "partition-c8.npz").write_bytes(b"external bytes")
+    store.record_file("partition-c8.npz")
+    assert store.manifest["partition-c8.npz"] == sha256_hex(b"external bytes")
+    with pytest.raises(FileNotFoundError, match="missing artifact"):
+        store.record_file("nope.npz")
+
+
+def test_load_detects_tampering(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    store.save_json("cfg", {"v": 1})
+    (tmp_path / "cfg.json").write_text('{"v":2}')
+    with pytest.raises(ValueError, match="integrity"):
+        store.load_json("cfg")
+
+
 def test_manifest_reloaded_from_disk(tmp_path: Path) -> None:
     ArtifactStore(tmp_path).save_json("a", {"v": 1})
     reopened = ArtifactStore(tmp_path)

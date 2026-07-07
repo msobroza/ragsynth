@@ -78,6 +78,19 @@ class ArtifactStore:
                 )
         return path
 
+    def record_file(self, filename: str) -> None:
+        """Register an externally-written file under ``root`` in the manifest.
+
+        Used for artifacts whose owning object writes its own format (e.g.
+        ``ReferencePartition.to_artifact``); the manifest still gets the hash.
+
+        Raises:
+            FileNotFoundError: If the file does not exist under ``root``.
+        """
+        if not self.path_for(filename).exists():
+            raise FileNotFoundError(f"cannot record missing artifact '{filename}'")
+        self._record(filename)
+
     def save_json(self, name: str, obj: Any) -> Path:
         """Save ``obj`` as canonical JSON under ``<name>.json``."""
         filename = f"{name}.json"
