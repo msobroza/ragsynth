@@ -1,0 +1,153 @@
+[project]
+name = "ragsynth"
+version = "0.1.0"
+description = "Synthetic query generation & validation toolkit for RAG retrieval evaluation over dynamic knowledge bases."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "msobroza" }]
+keywords = ["rag", "retrieval", "evaluation", "synthetic-data", "benchmarking"]
+
+dependencies = [
+    # Statistical core (all BSD -- air-gap rule, SPEC §1)
+    "numpy>=1.26",
+    "scipy>=1.14",
+    "scikit-learn>=1.5",
+    # Domain objects & config
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    # CLI
+    "typer>=0.12",
+    "rich>=13.7",
+    # Artifacts & figures
+    "joblib>=1.4",
+    "matplotlib>=3.9",
+    # Prompt templates (SPEC §6.3; PLAN D8)
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+notebooks = [
+    "jupyterlab>=4.3",
+    "ipywidgets>=8.1",
+    "seaborn>=0.13",
+]
+optimization = [
+    "dspy>=2.5",
+    "textgrad>=0.1.4",
+]
+bm25 = [
+    "bm25s>=0.2",
+]
+st = [
+    "sentence-transformers>=3.0",
+]
+
+[project.scripts]
+ragsynth = "ragsynth.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "scipy-stubs>=1.14",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.10"]
+build-backend = "uv_build"
+
+# --------------------------------------------------------------------------
+# Lint: full ruleset (SPEC §5 "audit-grade"), Google docstrings, line 100.
+# Every ignore below is a deliberate, documented exception -- not noise dodging.
+# --------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["reference", "experiments"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # trailing-comma: conflicts with the formatter
+    "ISC001",  # implicit-str-concat: conflicts with the formatter
+    "D203",    # one-blank-line-before-class: contradicts D211 (Google style)
+    "D213",    # multi-line-summary-second-line: contradicts D212 (Google style)
+    "D105",    # docstrings on magic methods: signature is the doc
+    "D107",    # __init__ docstring: class docstring covers construction
+    "ANN401",  # Any in **kwargs passthroughs (ChatModel Protocol, SPEC §12)
+    "PLR0913", # many-args: pipeline steps mirror their config params 1:1 (SPEC §13)
+    "ARG001",  # unused function args: registry/Protocol contracts fix signatures
+    "ARG002",  # unused method args: same (e.g. from_config(cls, config, resources))
+    "EM101",   # exception literal msg: readability preferred over msg-variable ritual
+    "EM102",   # exception f-string msg: same
+    "TRY003",  # long exception messages: actionable errors are a SPEC requirement (§13)
+    "G004",    # f-strings in logging: preferred for readability, cost negligible here
+    "PLC0415", # non-top-level imports: lazy optional-extra imports are a SPEC pattern (§3.3)
+    "TD002",   # TODO author tag: roadmap items live in SPEC §16, not code TODOs
+    "TD003",   # TODO issue link: same
+    "FIX002",  # flags TODO presence: stubs reference SPEC sections instead
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert is the point
+    "PLR2004", # magic values are fixtures
+    "D",       # test names are the documentation
+    "ANN",     # typed fixtures add noise, mypy still checks src
+    "SLF001",  # tests may poke internals
+    "INP001",  # test dirs are not packages
+    "FBT",     # bool fixture params
+]
+"src/ragsynth/cli.py" = [
+    "B008",    # typer.Option in defaults is the typer API
+    "UP007",   # typer needs Optional[X] over X | None on some versions
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+# --------------------------------------------------------------------------
+# Types: strict on src; third-party gaps declared explicitly.
+# --------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = [
+    "sklearn.*",
+    "joblib.*",
+    "dspy.*",
+    "textgrad.*",
+    "bm25s.*",
+    "sentence_transformers.*",
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["ragsynth"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "raise NotImplementedError",
+]
