@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from ragsynth.adapters.judge.base import RelevanceJudge
     from ragsynth.adapters.llm.base import ChatModel
     from ragsynth.adapters.retriever.base import Retriever
+    from ragsynth.datasets.base import DatasetBundle
     from ragsynth.domain import Chunk, ProductionQuery
     from ragsynth.io.artifacts import ArtifactStore
     from ragsynth.io.embeddings import EmbeddingStore
@@ -102,6 +103,7 @@ class Resources:
     zoo: Mapping[str, RetrievalSystem]
     artifacts: ArtifactStore
     seed: int
+    bundle: DatasetBundle | None = None
 
     def rng(self, name: str) -> np.random.Generator:
         """Deterministic per-name random substream.

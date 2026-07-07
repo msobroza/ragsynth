@@ -260,6 +260,7 @@ def build_resources(config: dict[str, Any]) -> Resources:
         zoo=make_system_zoo(chunk_ids, chunk_embs, seed=seed),
         artifacts=artifacts,
         seed=seed,
+        bundle=bundle,
     )
 
 
