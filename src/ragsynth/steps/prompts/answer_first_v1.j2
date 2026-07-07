@@ -1,0 +1,25 @@
+You are given evidence from a knowledge base. Generate ONE search query.
+
+Evidence:
+{% for text in chunk_texts -%}
+[chunk] {{ text }}
+{% endfor -%}
+{% if style_exemplars %}
+Real user queries from this system (match their length, register, and tone):
+{% for exemplar in style_exemplars -%}
+- {{ exemplar }}
+{% endfor -%}
+{% endif %}
+Instruction: {{ instruction }}
+
+Work answer-first: (1) silently extract one specific claim or fact from the
+evidence; (2) write the question a real user with that information need would
+type into a search box.
+
+Rules:
+- Never use phrases like "according to the document" or mention the evidence,
+  chunks, passage, or context.
+- The query must be answerable from the evidence above and nothing else.
+- Output ONLY the query text, nothing else.
+
+Variant {{ candidate_index + 1 }} of {{ n_candidates }} - vary the angle or facet from other variants.

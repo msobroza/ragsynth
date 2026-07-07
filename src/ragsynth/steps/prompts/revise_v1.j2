@@ -1,0 +1,20 @@
+REVISE_REQUEST
+Your previous query drifted from its retrieval target
+(cosine to target {{ "%.3f"|format(cos_to_target) }} < required {{ tau_t }}).
+
+Previous query: {{ previous_query }}
+
+Evidence:
+{% for text in chunk_texts -%}
+[chunk] {{ text }}
+{% endfor -%}
+{% if style_exemplars %}
+Real user queries (keep this register):
+{% for exemplar in style_exemplars -%}
+- {{ exemplar }}
+{% endfor -%}
+{% endif %}
+Instruction: {{ instruction }}
+
+Rewrite the query to target the evidence more specifically while keeping the
+exemplar register. Output ONLY the revised query text.
