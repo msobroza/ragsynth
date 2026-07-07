@@ -18,8 +18,10 @@ class A2Spec(GenerativeArmPreset):
     name = "a2"
 
     def sampler(self, resources: Resources, params: dict[str, Any]) -> PipelineStep:
-        """Spec-first seeds (kNN chunk count is the main knob; PLAN notes the
-        toy config uses 1 to reproduce the prototype's single-gold table).
+        """Spec-first seeds.
+
+        The kNN chunk count is the main knob; the toy config uses 1 to
+        reproduce the prototype's single-gold table (PLAN D-notes).
         """
         spec = params.get("spec", {})
         return SpecSeedSampler(
