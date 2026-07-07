@@ -10,6 +10,7 @@ from ragsynth.steps.seed_sampler import (
     SpecSeedSampler,
     UniformSeedSampler,
 )
+from ragsynth.steps.validator import Validator
 
 __all__ = [
     "ContextAssembler",
@@ -19,5 +20,6 @@ __all__ = [
     "QuotaSeedSampler",
     "SpecSeedSampler",
     "UniformSeedSampler",
+    "Validator",
     "VerificationGate",
 ]

@@ -160,3 +160,81 @@ def cluster_of(resources: Resources, chunk_id: str) -> int:
     """Reference-partition cluster of a chunk (helper for assertions)."""
     emb = resources.embeddings.get([chunk_id]).astype(np.float64)
     return int(resources.partition.assign(emb)[0])
+
+
+# ---- small end-to-end toy config (validator / e2e / cli tests) ----
+
+
+def toy_config(tmp_path: Path, **overrides: Any) -> dict[str, Any]:
+    """A small but complete toy-world run config (SPEC §13 schema).
+
+    Sized to run in seconds: d=16, 4 true components, 96 chunks, 400
+    production queries, 2 reference clusters, 30 records per arm.
+    """
+    config: dict[str, Any] = {
+        "ragsynth": {"schema_version": 1, "name": "toy-small", "seed": 0},
+        "resources": {
+            "dataset": {
+                "type": "toy_world",
+                "params": {"d": 16, "k_true": 4, "n_chunks": 96, "n_prod": 400},
+            },
+            "embedder": {"type": "passthrough"},
+            "generator_llm": {
+                "type": "toy_chat",
+                "params": {"style": 0.15, "noise": 0.68, "base": "chunks"},
+            },
+            "judge_llm": {"type": "toy_judge", "params": {"tau_ans": 0.4}},
+            "retriever": {"type": "dense_inmemory"},
+            "partition": {"n_clusters": 4},
+            "demand": {"n_components": 8},
+        },
+        "artifacts_dir": str(tmp_path / "exp" / "artifacts"),
+        "pipeline": [
+            {
+                "type": "seed_sampler.quota",
+                "params": {"lam": 0.7, "n_min": 3, "n_seeds": 24, "p_group": 0.2},
+            },
+            {"type": "context_assembler", "params": {"k_style": 3}},
+            {"type": "generator", "params": {"n_candidates": 2}},
+            {
+                "type": "gate",
+                "params": {
+                    "checks": ["dedup", "zero_context", "answerability", "round_trip"],
+                    "round_trip": {"k": 10},
+                    "dedup": {"cos_threshold": 0.95},
+                },
+            },
+            {"type": "qrel_builder", "params": {"strategy": "binary"}},
+            {"type": "curator", "params": {"memorization_cos": 0.9}},
+        ],
+    }
+    config.update(overrides)
+    return config
+
+
+TOY_ARM_PARAMS: dict[str, Any] = {
+    "a0": {
+        "n_seeds": 24,
+        "llm_override": {
+            "type": "toy_chat",
+            "params": {"style": 0.45, "noise": 0.55, "base": "chunks"},
+        },
+    },
+    "a1": {
+        "n_seeds": 24,
+        "quota": {"n_min": 3},
+        "llm_override": {
+            "type": "toy_chat",
+            "params": {"style": 0.15, "noise": 0.68, "base": "chunks"},
+        },
+    },
+    "a2": {
+        "n_seeds": 24,
+        "spec": {"n_chunks_per_seed": 1},
+        "llm_override": {
+            "type": "toy_chat",
+            "params": {"style": 0.05, "noise": 0.15, "base": "exemplars"},
+        },
+    },
+    "oracle": {"n_records": 24},
+}
