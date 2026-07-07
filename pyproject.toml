@@ -102,6 +102,7 @@ ignore = [
     "SLF001",  # tests may poke internals
     "INP001",  # test dirs are not packages
     "FBT",     # bool fixture params
+    "ERA001",  # hand-derivation comments in fixtures look like code (SPEC §15.4)
 ]
 "src/ragsynth/cli.py" = [
     "B008",    # typer.Option in defaults is the typer API
@@ -142,6 +143,7 @@ init_typed = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["ragsynth"]
