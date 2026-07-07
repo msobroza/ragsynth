@@ -2,5 +2,6 @@
 
 from ragsynth.adapters.llm.base import CHAT_MODELS, ChatModel
 from ragsynth.adapters.llm.mock import MockChatModel
+from ragsynth.adapters.llm.openai_compatible import OpenAICompatibleChat
 
-__all__ = ["CHAT_MODELS", "ChatModel", "MockChatModel"]
+__all__ = ["CHAT_MODELS", "ChatModel", "MockChatModel", "OpenAICompatibleChat"]
