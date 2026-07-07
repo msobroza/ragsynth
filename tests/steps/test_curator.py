@@ -2,8 +2,6 @@
 
 from datetime import UTC, datetime
 
-import numpy as np
-
 from ragsynth.domain import AnnotationRecord, Seed, Stratum, SyntheticQuery
 from ragsynth.pipeline.base import PipelineState, Resources
 from ragsynth.steps.curator import Curator

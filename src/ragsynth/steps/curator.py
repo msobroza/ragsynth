@@ -93,7 +93,7 @@ class Curator(PipelineStep):
         keep: set[str] = set()
         for key, frac in self.target_mix.items():
             pool = by_stratum.get(key, [])
-            n_keep = int(round(total * frac))
+            n_keep = round(total * frac)
             picks = rng.choice(len(pool), size=min(n_keep, len(pool)), replace=False)
             keep.update(pool[int(i)].record_id for i in picks)
         return [r for r in records if r.record_id in keep]
