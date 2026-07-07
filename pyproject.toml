@@ -82,6 +82,7 @@ ignore = [
     "PLR0913", # many-args: pipeline steps mirror their config params 1:1 (SPEC §13)
     "ARG001",  # unused function args: registry/Protocol contracts fix signatures
     "ARG002",  # unused method args: same (e.g. from_config(cls, config, resources))
+    "ARG003",  # unused classmethod args: same (from_config factory contract)
     "EM101",   # exception literal msg: readability preferred over msg-variable ritual
     "EM102",   # exception f-string msg: same
     "TRY003",  # long exception messages: actionable errors are a SPEC requirement (§13)
