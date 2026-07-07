@@ -1,8 +1,10 @@
 """Pipeline steps, self-registered on import (SPEC §6)."""
 
 from ragsynth.steps.context_assembler import ContextAssembler
+from ragsynth.steps.curator import Curator
 from ragsynth.steps.gate import VerificationGate
 from ragsynth.steps.generator import QueryGenerator
+from ragsynth.steps.qrel_builder import QrelBuilder
 from ragsynth.steps.seed_sampler import (
     QuotaSeedSampler,
     SpecSeedSampler,
@@ -11,6 +13,8 @@ from ragsynth.steps.seed_sampler import (
 
 __all__ = [
     "ContextAssembler",
+    "Curator",
+    "QrelBuilder",
     "QueryGenerator",
     "QuotaSeedSampler",
     "SpecSeedSampler",
