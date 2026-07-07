@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
@@ -113,6 +114,11 @@ class Resources:
     def with_overrides(self, **kwargs: Any) -> Resources:
         """Return a copy with the given fields replaced (arms use this, PLAN D12)."""
         return replace(self, **kwargs)
+
+    @cached_property
+    def chunk_index(self) -> dict[str, Chunk]:
+        """Chunk lookup by id (cached; writes instance __dict__, frozen-safe)."""
+        return {c.chunk_id: c for c in self.chunks}
 
     def chunk_embs(self) -> NDArray[np.float64]:
         """Chunk embedding matrix, row i = ``chunks[i]``."""
