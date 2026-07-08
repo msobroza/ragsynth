@@ -135,7 +135,12 @@ class QuotaSeedSampler(PipelineStep):
         self.strata = list(strata) if strata is not None else list(DEFAULT_STRATA)
 
     def _allocate(self, p_hat: NDArray[np.float64]) -> NDArray[np.int_]:
-        """Floor + largest-remainder proportional allocation."""
+        """Proportional largest-remainder allocation with a per-cluster floor.
+
+        ``n_c`` is proportional to ``tilt_weights(p_hat, lam)`` (SPEC §6.1);
+        clusters below ``n_min`` are raised to the floor, the excess taken
+        back from the largest allocations (deterministic waterfill).
+        """
         n_clusters = len(p_hat)
         if self.n_seeds < n_clusters * self.n_min:
             raise ValueError(
@@ -143,14 +148,19 @@ class QuotaSeedSampler(PipelineStep):
                 f"across {n_clusters} clusters (need >= {n_clusters * self.n_min})"
             )
         tilted = tilt_weights(p_hat, self.lam)
-        remaining = self.n_seeds - n_clusters * self.n_min
-        shares = tilted * remaining
+        shares = tilted * self.n_seeds
         counts = np.floor(shares).astype(np.int_)
-        shortfall = remaining - int(counts.sum())
+        shortfall = self.n_seeds - int(counts.sum())
         if shortfall > 0:
             order = np.argsort(-(shares - counts), kind="stable")
             counts[order[:shortfall]] += 1
-        return counts + self.n_min
+        deficits = np.flatnonzero(counts < self.n_min)
+        need = int((self.n_min - counts[deficits]).sum())
+        counts[deficits] = self.n_min
+        for _ in range(need):
+            donor = int(np.argmax(np.where(counts > self.n_min, counts, -1)))
+            counts[donor] -= 1
+        return counts
 
     def run(self, state: PipelineState) -> PipelineState:
         """Sample quota-allocated seeds, chunks drawn within their cluster."""

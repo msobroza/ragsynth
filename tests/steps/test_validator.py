@@ -39,6 +39,7 @@ def validated(tmp_path_factory: pytest.TempPathFactory) -> tuple[Resources, Pipe
         n_per_arm=24,
         reuse_pipeline_for="a1",
         arm_params=TOY_ARM_PARAMS,
+        wc2st_min_per_side=5,
     )
     validator.fit(resources)
     state = validator.run(state)

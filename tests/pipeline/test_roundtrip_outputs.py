@@ -20,6 +20,7 @@ def _with_validator(tmp_path: Path) -> dict:
                 "n_per_arm": 12,
                 "reuse_pipeline_for": "a1",
                 "arm_params": {key: TOY_ARM_PARAMS[key] for key in ("a1", "oracle")},
+                "wc2st_min_per_side": 5,
             },
         }
     )

@@ -11,7 +11,7 @@ the four binding claims with margins:
 Ground truth: the vendored prototype's own demo table (reference/
 synth_query_eval.py, seed 0 of ITS rng stream). The shipped config's seed
 is the world realization where this package exhibits the same table; the
-tuning trace lives in experiments/v1/report.md.
+tuning trace lives in experiments/v1/analysis.ipynb and PLAN.md D21-D26.
 """
 
 import json

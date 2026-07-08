@@ -23,6 +23,7 @@ def _run_once(tmp_path: Path) -> bytes:
                 "n_per_arm": 16,
                 "reuse_pipeline_for": "a1",
                 "arm_params": {key: TOY_ARM_PARAMS[key] for key in ("a1", "oracle")},
+                "wc2st_min_per_side": 5,
             },
         }
     )
@@ -59,6 +60,7 @@ def test_different_seed_different_benchmark(tmp_path: Path, seed: int) -> None:
                 "n_boot": 30,
                 "n_per_arm": 16,
                 "arm_params": {"oracle": TOY_ARM_PARAMS["oracle"]},
+                "wc2st_min_per_side": 5,
             },
         }
     )

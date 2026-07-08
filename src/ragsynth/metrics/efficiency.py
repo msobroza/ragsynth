@@ -96,7 +96,8 @@ def post_stratified_estimate(
         The post-stratified estimate.
 
     Reference:
-        Post-stratification residual analysis in SPEC §16; prototype L356-367.
+        Classical survey post-stratification (Holt & Smith, JRSS A 1979);
+        residual analysis in SPEC §16; prototype L356-367.
     """
     metric = np.asarray(per_query_metric, dtype=np.float64)
     labels_arr = np.asarray(labels, dtype=np.int_)

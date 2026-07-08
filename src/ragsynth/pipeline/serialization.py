@@ -81,9 +81,15 @@ def config_hash(config: dict[str, Any]) -> str:
 
 
 def _llm_family(block: dict[str, Any]) -> str:
-    """Best-effort model-family identity of an adapter config block."""
+    """Best-effort model-family identity of an adapter config block.
+
+    The Froebe et al. (SIGIR 2025) finding is about model FAMILIES, so this
+    compares the leading name token: ``gpt-4o`` and ``gpt-4o-mini`` are the
+    same family; ``llama-70b`` and ``llama-8b`` are the same family.
+    """
     params = block.get("params") or {}
-    return str(params.get("model", block.get("type", "")))
+    model = str(params.get("model", block.get("type", "")))
+    return model.lower().split("-")[0].split("/")[-1]
 
 
 def validate_config(config: dict[str, Any]) -> list[str]:

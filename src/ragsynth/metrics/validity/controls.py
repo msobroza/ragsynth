@@ -68,7 +68,7 @@ def drop_index_mask(n_chunks: int, frac: float, rng: np.random.Generator) -> NDA
     """Build a boolean mask marking a random fraction of chunks as dropped.
 
     Simulates index loss (the "10% of the index silently deleted"
-    positive control): exactly ``round(frac * n_chunks)`` entries are True,
+    positive control): exactly ``int(frac * n_chunks)`` entries are True,
     chosen uniformly without replacement.
 
     Reference:
@@ -83,7 +83,7 @@ def drop_index_mask(n_chunks: int, frac: float, rng: np.random.Generator) -> NDA
     Returns:
         Shape ``(n_chunks,)`` boolean mask; True marks a dropped chunk.
     """
-    n_drop = round(frac * n_chunks)
+    n_drop = int(frac * n_chunks)  # truncation, matching prototype L865
     mask = np.zeros(n_chunks, dtype=np.bool_)
     if n_drop > 0:
         mask[rng.choice(n_chunks, size=n_drop, replace=False)] = True

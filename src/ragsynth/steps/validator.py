@@ -74,6 +74,7 @@ class Validator(PipelineStep):
         reuse_pipeline_for: str | None = None,
         arm_params: dict[str, dict[str, Any]] | None = None,
         controls: dict[str, float] | None = None,
+        wc2st_min_per_side: int = 30,
     ) -> None:
         self._resources = resources
         self.arms = list(arms)
@@ -84,6 +85,7 @@ class Validator(PipelineStep):
         self.reuse_pipeline_for = reuse_pipeline_for
         self.arm_params = {key: dict(val) for key, val in (arm_params or {}).items()}
         self.controls = {**_DEFAULT_CONTROLS, **(controls or {})}
+        self.wc2st_min_per_side = wc2st_min_per_side
 
     # ---- record collection -------------------------------------------------
 
@@ -136,7 +138,12 @@ class Validator(PipelineStep):
     ) -> dict[str, Any]:
         seed = self._resources.seed
         wc2st_mean, per_cluster = wc2st(
-            real_ref, arm_embs, labels_real, labels_synth, min_per_side=5, seed=seed
+            real_ref,
+            arm_embs,
+            labels_real,
+            labels_synth,
+            min_per_side=self.wc2st_min_per_side,
+            seed=seed,
         )
         return {
             "kl": kl_similarity_distributions(real_ref, arm_embs, chunk_embs),
@@ -230,9 +237,22 @@ class Validator(PipelineStep):
                 sub = ranking_agreement(
                     anchor_scores, arm_scores[:, indices], n_boot=self.n_boot, seed=seed
                 )
-                per_stratum[key] = {"tau": sub.tau, "tau_ap": sub.tau_ap_, "n": len(indices)}
+                per_stratum[key] = {
+                    "tau": sub.tau,
+                    "tau_ap": sub.tau_ap_,
+                    "n": len(indices),
+                    "passed": bool(
+                        sub.tau >= self.gates.get("tau", 0.9)
+                        and sub.tau_ap_ >= self.gates.get("tau_ap", 0.8)
+                    ),
+                }
             else:
-                per_stratum[key] = {"tau": None, "tau_ap": None, "n": len(indices)}
+                per_stratum[key] = {
+                    "tau": None,
+                    "tau_ap": None,
+                    "n": len(indices),
+                    "passed": None,
+                }
 
         block = {
             "tau": agreement.tau,
@@ -258,6 +278,13 @@ class Validator(PipelineStep):
 
         arm_blocks: dict[str, dict[str, Any]] = {}
         gates_passed: dict[str, bool] = {}
+        # ONE shared anchor subsample base for every arm's fidelity block
+        # (prototype L860 protocol): per-arm equal-n views are nested prefixes.
+        ref_rng = resources.rng("validator.fidelity")
+        n_ref_base = min(len(anchor_embs), self.n_per_arm)
+        real_ref_base = anchor_embs[
+            ref_rng.choice(len(anchor_embs), size=n_ref_base, replace=False)
+        ]
         for arm in self.arms:
             records, reused = self._arm_records(arm, state)
             arm_embs, usable = self._record_embs(records)
@@ -266,9 +293,15 @@ class Validator(PipelineStep):
                 arm_blocks[arm] = {"n_records": len(usable), "skipped": True}
                 gates_passed[arm] = False
                 continue
-            ref_rng = resources.rng(f"validator.fidelity.{arm}")
-            n_ref = min(len(anchor_embs), len(arm_embs))
-            real_ref = anchor_embs[ref_rng.choice(len(anchor_embs), size=n_ref, replace=False)]
+            # Equal-n on BOTH sides (SPEC §8): trim the shared reference to the
+            # arm size, and subsample the arm when it exceeds the reference.
+            n_fid = min(n_ref_base, len(arm_embs))
+            real_ref = real_ref_base[:n_fid]
+            if len(arm_embs) > n_fid:
+                arm_rng = resources.rng(f"validator.fidelity.arm.{arm}")
+                fid_embs = arm_embs[arm_rng.choice(len(arm_embs), size=n_fid, replace=False)]
+            else:
+                fid_embs = arm_embs
             labels_real = resources.partition.assign(real_ref)
             labels_synth = resources.partition.assign(arm_embs)
             arm_qrels = [dict(r.qrels) for r in usable]
@@ -278,7 +311,11 @@ class Validator(PipelineStep):
                 "n_records": len(usable),
                 "reused_pipeline_records": reused,
                 "fidelity": self._fidelity_block(
-                    arm_embs, real_ref, labels_real, labels_synth, chunk_embs
+                    fid_embs,
+                    real_ref,
+                    labels_real,
+                    resources.partition.assign(fid_embs),
+                    chunk_embs,
                 ),
                 "efficiency": self._efficiency_block(labels_synth, base_scores),
                 "validity": validity,
@@ -346,6 +383,7 @@ class Validator(PipelineStep):
             "reuse_pipeline_for": self.reuse_pipeline_for,
             "arm_params": self.arm_params,
             "controls": self.controls,
+            "wc2st_min_per_side": self.wc2st_min_per_side,
         }
 
     @classmethod
@@ -473,7 +511,11 @@ def render_figures(report: EvalReport, fig_dir: Path, tau_gate: float) -> None:
     los = [report.arms[a]["validity"]["tau_ci"][0] for a in arms]
     his = [report.arms[a]["validity"]["tau_ci"][1] for a in arms]
     x = np.arange(len(arms))
-    ax.errorbar(x, taus, yerr=[np.subtract(taus, los), np.subtract(his, taus)], fmt="o", capsize=4)
+    # tau is computed on the full data and can land outside the bootstrap
+    # percentile band at small n_boot; errorbar arms must be non-negative.
+    lower = np.maximum(np.subtract(taus, los), 0.0)
+    upper = np.maximum(np.subtract(his, taus), 0.0)
+    ax.errorbar(x, taus, yerr=[lower, upper], fmt="o", capsize=4)
     ax.axhline(tau_gate, linestyle="--", linewidth=1)
     ax.set_xticks(x)
     ax.set_xticklabels(arms)
@@ -486,8 +528,9 @@ def render_figures(report: EvalReport, fig_dir: Path, tau_gate: float) -> None:
     fig, ax = plt.subplots(figsize=(7, 4))
     reasons: dict[str, int] = {}
     for block in report.arms.values():
-        for reason, count in block.get("gate_reject_reasons", {}).items():
+        for reason, count in sorted(block.get("gate_reject_reasons", {}).items()):
             reasons[reason] = reasons.get(reason, 0) + count
+    reasons = dict(sorted(reasons.items()))
     if reasons:
         ax.bar(list(reasons.keys()), list(reasons.values()))
     ax.set_title("Gate reject reasons (pipeline arm)")

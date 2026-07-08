@@ -19,3 +19,6 @@ coverage.xml
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Fitted-artifact npz bytes jitter 1 ULP across runs (PLAN D30)
+experiments/*/artifacts/

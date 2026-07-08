@@ -18,7 +18,7 @@ class Curator(PipelineStep):
     """Final curation of the accepted record set.
 
     Memorization: records whose query embedding has cosine >=
-    ``memorization_cos`` to ANY production train query are FLAGGED (kept,
+    ``memorization_cos`` to ANY production query (all splits) are FLAGGED (kept,
     not dropped) -- Chroma's verbatim-reproduction audit semantics.
     ``target_mix`` maps stratum keys (``Stratum.key()``) to target
     fractions; the binding stratum determines the total.
@@ -50,10 +50,18 @@ class Curator(PipelineStep):
 
     def _flag_memorization(self, records: list[AnnotationRecord]) -> list[AnnotationRecord]:
         resources = self._resources
-        train_ids = [q.query_id for q in resources.queries_train]
-        if not train_ids:
+        production_ids = [
+            q.query_id
+            for split in (
+                resources.queries_train,
+                resources.queries_anchor,
+                resources.queries_oracle,
+            )
+            for q in split
+        ]
+        if not production_ids:
             return records
-        train_embs = resources.embeddings.get(train_ids).astype(np.float64)
+        train_embs = resources.embeddings.get(production_ids).astype(np.float64)
         out: list[AnnotationRecord] = []
         for record in records:
             ref = record.query.embedding_ref

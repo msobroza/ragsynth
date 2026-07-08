@@ -54,6 +54,7 @@ STEP_PARAMS: dict[str, dict[str, Any]] = {
         "n_boot": 10,
         "n_per_arm": 8,
         "arm_params": {"oracle": {"n_records": 8}},
+        "wc2st_min_per_side": 5,
     },
 }
 

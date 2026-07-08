@@ -28,6 +28,7 @@ def cli_config_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
                 "n_per_arm": 16,
                 "reuse_pipeline_for": "a1",
                 "arm_params": {key: TOY_ARM_PARAMS[key] for key in ("a1", "oracle")},
+                "wc2st_min_per_side": 5,
             },
         }
     )

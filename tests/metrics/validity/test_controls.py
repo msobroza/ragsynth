@@ -34,9 +34,11 @@ class TestDropIndexMask:
         assert mask.dtype == np.bool_
         assert int(mask.sum()) == 10
 
-    def test_rounds_fraction(self):
+    def test_truncates_fraction(self):
+        # int() truncation, matching prototype L865: int(0.10 * 99) == 9, not 10.
         mask = drop_index_mask(30, 0.25, np.random.default_rng(3))
-        assert int(mask.sum()) == round(0.25 * 30)
+        assert int(mask.sum()) == int(0.25 * 30)
+        assert int(drop_index_mask(99, 0.10, np.random.default_rng(3)).sum()) == 9
 
     def test_zero_fraction_drops_nothing(self):
         mask = drop_index_mask(20, 0.0, np.random.default_rng(0))

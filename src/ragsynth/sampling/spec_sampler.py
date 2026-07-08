@@ -55,6 +55,11 @@ class SpecSampler:
         self._nn = NearestNeighbors(n_neighbors=1, metric="cosine").fit(self.prod_emb)
 
     def sample(self, n: int, rng: Generator) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
+        # NOTE on failure semantics vs the prototype: under total guard
+        # rejection the prototype could silently return FEWER than n samples
+        # (its L309 loop counted batches, not samples); this port always
+        # returns exactly n or raises the RuntimeError below. The accepted
+        # stream's distribution is identical.
         """Draw ``n`` guarded samples from the tilted mixture.
 
         Guarded ancestral sampling (prototype L306-L321; bookkeeping here
