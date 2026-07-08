@@ -46,6 +46,12 @@
 | D18 | Sample corpus: `data/sample/{chunks,queries}.jsonl` (200 chunks / 120 queries), committed AND regenerable via `python -m ragsynth.datasets.sample_corpus` (deterministic, seed 0). | §15.1 "bundled". |
 | D19 | Composition root = `pipeline/serialization.py` (`load_config`, `build_resources`, `build_pipeline`, `config_hash`); `Pipeline.from_yaml` delegates. Partition + movMF demand are fit-or-loaded there each run (deterministic), persisted via `ArtifactStore` with sha256 manifest = the "versioned frozen artifact". | §3.1, §7.2/7.4, §13. |
 | D20 | Optimizer module mirrors healthbench: `require_optional(module, feature, extra)` helper lives in `ragsynth/optional_deps.py` (no `utils.py` rule). | §3.3, §11. |
+| D21 | *(Phase 4)* Validator deterministically subsamples EVERY arm (incl. the reused pipeline arm) to `n_per_arm` — bootstrap CI width and control p-values are n-dependent, so uncapped arms are not comparable to the oracle. | Prototype evaluates exactly n_arm per arm. |
+| D22 | *(Phase 4)* `relabel_nearest` qrel strategy (gold = nearest chunk of the emitted query, single grade-1) added and used by the toy config — the "gate-style nearest-chunk gold relabeling" §10 names. Restores the saturated-score dynamics behind sub-gate a0/a1 taus and the noise-control insensitivity. | §10; prototype `_nearest_chunk`. |
+| D23 | *(Phase 4)* A2 toy emission noise 0.15 → 0.42 (≈ √(0.39² + 0.15²)): the exemplar-mean base loses the vMF(κ=400) dispersion that z-sampling carries; without it dedup killed 60% of A2 and KL blew out. | D12 knob; tuning trace in experiments/v1. |
+| D24 | *(Phase 4)* Toy config quota arms use `p_group: 0` (single-chunk seeds): chunk-group midpoint emissions have razor-thin nearest-gold margins, making 20% of A1's queries noise-fragile by construction and destroying the "A1 misses the noise control" table row. The prototype's A1 is single-chunk. `p_group=0.2` stays the package default for real corpora. | §10 table reproduction. |
+| D25 | *(Phase 4)* Control degradations are validator config (`controls: {drop_frac, noise_sigma, truncate_k}`), defaults 0.10/0.5/3. | §8-9 factory params, config-exposed. |
+| D26 | *(Phase 4)* Generator embedding refs namespaced by `benchmark_version` (write-once store; arm regenerations over shared Resources must not collide). | Robustness; found via validator arm runs. |
 
 ---
 
