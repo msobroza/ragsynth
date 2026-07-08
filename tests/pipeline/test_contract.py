@@ -59,7 +59,8 @@ STEP_PARAMS: dict[str, dict[str, Any]] = {
 
 
 def _registered(registry: Any) -> list[str]:
-    return [key for key in registry.keys() if not key.startswith("test.")]
+    keys = registry.keys()  # Registry method, not dict.keys
+    return [key for key in keys if not key.startswith("test.")]
 
 
 @pytest.fixture(scope="module")

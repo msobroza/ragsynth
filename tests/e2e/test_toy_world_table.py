@@ -58,9 +58,9 @@ def test_a2_best_within_cluster_shape_and_mmd(table: dict[str, Any]) -> None:
 
 
 def test_a1_matches_marginals_but_not_shape(table: dict[str, Any]) -> None:
-    assert table["a1"]["efficiency"]["ess_ratio"] >= table["oracle"]["efficiency"][
-        "ess_ratio"
-    ] - 0.15
+    assert (
+        table["a1"]["efficiency"]["ess_ratio"] >= table["oracle"]["efficiency"]["ess_ratio"] - 0.15
+    )
     assert table["a1"]["fidelity"]["wc2st_mean"] > 0.85
 
 
