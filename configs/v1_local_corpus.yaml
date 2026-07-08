@@ -1,0 +1,43 @@
+# ragsynth v1 local-corpus config (SPEC §15.1): bundled 200-chunk sample jsonl,
+# hashed n-gram embedder (air-gap default, PLAN D3), fully-offline mocks.
+# Note: generator and judge are both `mock` -- the same-family judge warning
+# (SPEC §6.4) fires by design on this config.
+ragsynth: {schema_version: 1, name: v1-local-corpus, seed: 0}
+resources:
+  dataset:
+    type: jsonl
+    params:
+      chunks_path: data/sample/chunks.jsonl
+      queries_path: data/sample/queries.jsonl
+  embedder:
+    type: hashed_ngram
+    params: {dim: 256, seed: 0}
+  generator_llm: {type: mock}
+  judge_llm: {type: mock}
+  retriever: {type: dense_inmemory}
+  partition: {n_clusters: 8}
+  demand: {n_components: 8, lam: 0.7, tau_r_pct: 5.0}
+artifacts_dir: experiments/v1_local_corpus/artifacts
+pipeline:
+  - {type: seed_sampler.quota, params: {lam: 0.7, n_min: 3, n_seeds: 120, p_group: 0.2}}
+  - {type: context_assembler, params: {k_style: 3}}
+  - {type: generator, params: {n_candidates: 2, prompt_version: answer_first_v1}}
+  - type: gate
+    params:
+      checks: [dedup, zero_context, answerability, round_trip, uniqueness]
+      dedup: {cos_threshold: 0.98}
+      round_trip: {k: 10}
+      uniqueness: {mode: promote, top_m: 3}
+  - {type: qrel_builder, params: {strategy: binary}}
+  - {type: curator, params: {memorization_cos: 0.9}}
+  - type: validator
+    params:
+      arms: [a0, a1, a2, oracle]
+      n_boot: 500
+      n_per_arm: 100
+      reuse_pipeline_for: a1
+      gates: {tau: 0.9, tau_ap: 0.8}
+      arm_params:
+        a1: {quota: {n_min: 3}}
+        a2: {spec: {n_chunks_per_seed: 3}}
+        oracle: {n_records: 100}

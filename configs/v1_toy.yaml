@@ -1,0 +1,57 @@
+# ragsynth v1 toy-world acceptance config (SPEC §13 schema v1, §15.1).
+# Adapter types are the explicit toy implementations (PLAN D11); the per-arm
+# toy_chat emission magnitudes simulate prompting-quality differences and come
+# verbatim from the prototype (PLAN D12): A0 (.45/.55), A1 (.15/.68), A2 (.05/.15).
+# A2 uses n_chunks_per_seed=1 to reproduce the prototype's single-gold table.
+ragsynth: {schema_version: 1, name: v1-toy, seed: 0}
+resources:
+  dataset:
+    type: toy_world
+    params: {d: 64, k_true: 8, n_chunks: 640, n_prod: 5000}
+  embedder: {type: passthrough}            # toy world provides embeddings
+  generator_llm:
+    type: toy_chat
+    params: {style: 0.15, noise: 0.68, base: chunks}
+  judge_llm:
+    type: toy_judge
+    params: {tau_ans: 0.4}
+  retriever: {type: dense_inmemory}
+  partition: {n_clusters: 8}
+  demand: {n_components: 16, lam: 0.7, tau_r_pct: 5.0}
+artifacts_dir: experiments/v1/artifacts
+pipeline:
+  - {type: seed_sampler.quota, params: {lam: 0.7, n_min: 3, n_seeds: 500, p_group: 0.2}}
+  - {type: context_assembler, params: {k_style: 3}}
+  - {type: generator, params: {n_candidates: 3, prompt_version: answer_first_v1}}
+  - type: gate
+    params:
+      checks: [dedup, zero_context, answerability, round_trip, uniqueness]
+      dedup: {cos_threshold: 0.95}
+      round_trip: {k: 10}
+      uniqueness: {mode: promote, top_m: 5}
+  - {type: qrel_builder, params: {strategy: binary}}
+  - {type: curator, params: {memorization_cos: 0.9}}
+  - type: validator
+    params:
+      arms: [a0, a1, a2, oracle]
+      n_boot: 1000
+      n_per_arm: 500
+      reuse_pipeline_for: a1
+      gates: {tau: 0.9, tau_ap: 0.8}
+      arm_params:
+        a0:
+          llm_override:
+            type: toy_chat
+            params: {style: 0.45, noise: 0.55, base: chunks}
+          gate: {checks: [dedup, zero_context, answerability, round_trip, uniqueness],
+                 round_trip: {k: 10}, uniqueness: {mode: promote, top_m: 5}}
+        a1:
+          llm_override:
+            type: toy_chat
+            params: {style: 0.15, noise: 0.68, base: chunks}
+        a2:
+          spec: {n_chunks_per_seed: 1}
+          llm_override:
+            type: toy_chat
+            params: {style: 0.05, noise: 0.15, base: exemplars}
+        oracle: {n_records: 500}

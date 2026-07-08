@@ -400,7 +400,8 @@ def render_markdown(report: EvalReport, k: int) -> str:
             for row in eff["per_cluster"]
         ]
         if block.get("gate_reject_reasons"):
-            lines += ["", f"Gate reject reasons: {block['gate_reject_reasons']}"]
+            ordered = dict(sorted(block["gate_reject_reasons"].items()))
+            lines += ["", f"Gate reject reasons: {ordered}"]
         lines.append("")
     return "\n".join(lines)
 
