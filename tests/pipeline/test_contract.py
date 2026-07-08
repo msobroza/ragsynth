@@ -11,8 +11,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-import ragsynth.arms  # noqa: F401 - populate ARM registry
-import ragsynth.datasets  # noqa: F401 - populate DATASETS registry
+import ragsynth.arms
+import ragsynth.datasets
 import ragsynth.steps  # noqa: F401 - populate STEPS registry
 from ragsynth.adapters.embedder.base import EMBEDDERS
 from ragsynth.adapters.judge.base import JUDGES

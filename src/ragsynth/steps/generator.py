@@ -65,7 +65,9 @@ class QueryGenerator(PipelineStep):
         self._resources.embeddings.add([ref], emb)
         return np.asarray(emb[0], dtype=np.float64)
 
-    def _generate_one(self, context: GenerationContext, candidate_index: int) -> SyntheticQuery:
+    def _generate_one(
+        self, context: GenerationContext, candidate_index: int, namespace: str
+    ) -> SyntheticQuery:
         resources = self._resources
         seed = context.seed
         base_kwargs = {
@@ -78,7 +80,9 @@ class QueryGenerator(PipelineStep):
         user = self._template.render(**base_kwargs)
         text = resources.generator_llm.complete(SYSTEM_PROMPT, user)
         query_id = f"synq-{seed.seed_id}-{candidate_index}"
-        ref = f"{query_id}#a0"
+        # Namespaced by run so arm regenerations over shared Resources never
+        # collide in the embedding store (refs must be write-once).
+        ref = f"{namespace}|{query_id}#a0"
         emb = self._embed(ref, text)
 
         z = np.asarray(seed.z, dtype=np.float64) if seed.z is not None else None
@@ -95,7 +99,7 @@ class QueryGenerator(PipelineStep):
                 previous_query=text, cos_to_target=cos, tau_t=self.tau_t, **base_kwargs
             )
             text = resources.generator_llm.complete(SYSTEM_PROMPT, revise_user)
-            ref = f"{query_id}#a{revisions}"
+            ref = f"{namespace}|{query_id}#a{revisions}"
             emb = self._embed(ref, text)
             cos = float(emb @ z)
 
@@ -115,9 +119,10 @@ class QueryGenerator(PipelineStep):
 
     def run(self, state: PipelineState) -> PipelineState:
         """Generate candidates for every assembled context."""
+        namespace = str(state.provenance.get("benchmark_version", "run"))
         for context in state.contexts:
             for i in range(self.n_candidates):
-                state.candidates.append(self._generate_one(context, i))
+                state.candidates.append(self._generate_one(context, i, namespace))
         return state
 
     def to_config(self) -> dict[str, Any]:

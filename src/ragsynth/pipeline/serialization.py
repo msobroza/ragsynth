@@ -37,6 +37,18 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
+
+def _populate_registries() -> None:
+    """Import all concrete steps/datasets/arms/adapters (side-effect registration).
+
+    Config resolution must work regardless of what the caller imported first.
+    """
+    import importlib
+
+    for module in ("ragsynth.steps", "ragsynth.datasets", "ragsynth.arms"):
+        importlib.import_module(module)
+
+
 _DEFAULT_PARTITION: dict[str, Any] = {"n_clusters": 8}
 _DEFAULT_DEMAND: dict[str, Any] = {
     "n_components": 16,
@@ -84,6 +96,7 @@ def validate_config(config: dict[str, Any]) -> list[str]:
         ValueError: On schema-version mismatch or missing required blocks.
         RegistryError: If any ``type`` is not registered.
     """
+    _populate_registries()
     meta = config.get("ragsynth") or {}
     if meta.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(
@@ -165,6 +178,7 @@ def build_resources(config: dict[str, Any]) -> Resources:
     from ragsynth.sampling.movmf import MovMF
     from ragsynth.sampling.partition import ReferencePartition
 
+    _populate_registries()
     resources_cfg = config["resources"]
     seed = int(config["ragsynth"]["seed"])
     rng = np.random.default_rng([seed, stable_hash64("composition")])

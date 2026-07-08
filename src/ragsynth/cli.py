@@ -126,9 +126,8 @@ def report(config: Path = _CONFIG_OPTION) -> None:
     out_dir = Path(loaded["artifacts_dir"]).parent
     metrics_path = out_dir / "metrics.json"
     if not metrics_path.exists():
-        console.print(
-            f"[red]{metrics_path} not found[/red] - execute `ragsynth run --config {config}` first"
-        )
+        console.print(f"[red]missing metrics.json[/red] under {out_dir}")
+        console.print("execute `ragsynth run` with this config first")
         raise typer.Exit(1)
     payload = json.loads(metrics_path.read_text())
     eval_report = EvalReport(**payload)

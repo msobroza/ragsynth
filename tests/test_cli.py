@@ -96,7 +96,7 @@ def test_report_without_run_fails_actionably(tmp_path: Path) -> None:
     result = runner.invoke(app, ["report", "--config", str(path)])
     assert result.exit_code == 1
     flat = " ".join(result.output.split())  # rich wraps lines at terminal width
-    assert "metrics.json not found" in flat
+    assert "missing metrics.json" in flat
     assert "ragsynth run" in flat
 
 
