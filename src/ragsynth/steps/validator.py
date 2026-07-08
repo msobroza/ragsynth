@@ -46,9 +46,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MIN_STRATUM_N = 30
-_DROP_FRAC = 0.10
-_NOISE_SIGMA = 0.5
-_TRUNCATE_K = 3
+_DEFAULT_CONTROLS: dict[str, float] = {"drop_frac": 0.10, "noise_sigma": 0.5, "truncate_k": 3}
 _WORST_K = 3
 _MIN_USABLE = 2
 
@@ -75,6 +73,7 @@ class Validator(PipelineStep):
         n_per_arm: int = 500,
         reuse_pipeline_for: str | None = None,
         arm_params: dict[str, dict[str, Any]] | None = None,
+        controls: dict[str, float] | None = None,
     ) -> None:
         self._resources = resources
         self.arms = list(arms)
@@ -84,18 +83,32 @@ class Validator(PipelineStep):
         self.n_per_arm = n_per_arm
         self.reuse_pipeline_for = reuse_pipeline_for
         self.arm_params = {key: dict(val) for key, val in (arm_params or {}).items()}
+        self.controls = {**_DEFAULT_CONTROLS, **(controls or {})}
 
     # ---- record collection -------------------------------------------------
 
     def _arm_records(self, arm: str, state: PipelineState) -> tuple[list[AnnotationRecord], bool]:
         if arm == self.reuse_pipeline_for:
-            return list(state.accepted), True
+            return self._cap(arm, list(state.accepted)), True
         from ragsynth.arms.base import run_arm
 
         params = dict(self.arm_params.get(arm, {}))
         params.setdefault("n_seeds", self.n_per_arm)
         params.setdefault("n_records", self.n_per_arm)
-        return run_arm(arm, self._resources, params), False
+        return self._cap(arm, run_arm(arm, self._resources, params)), False
+
+    def _cap(self, arm: str, records: list[AnnotationRecord]) -> list[AnnotationRecord]:
+        """Deterministically subsample to ``n_per_arm`` for arm comparability.
+
+        The prototype evaluates exactly ``n_arm`` records per arm; without the
+        cap, arms that overgenerate would enjoy tighter bootstrap CIs than the
+        oracle and the positive-control p-values would not be comparable.
+        """
+        if len(records) <= self.n_per_arm:
+            return records
+        rng = self._resources.rng(f"validator.subsample.{arm}")
+        picks = sorted(rng.choice(len(records), size=self.n_per_arm, replace=False).tolist())
+        return [records[i] for i in picks]
 
     def _record_embs(
         self, records: list[AnnotationRecord]
@@ -187,16 +200,18 @@ class Validator(PipelineStep):
             arm_embs,
             arm_qrels,
             k=self.k,
-            drop_mask=drop_index_mask(n_chunks, _DROP_FRAC, controls_rng[0]),
+            drop_mask=drop_index_mask(n_chunks, self.controls["drop_frac"], controls_rng[0]),
         )
         noisy_system = MatrixSystem(
             name="noise-control",
-            matrix=noise_transform(arm_embs.shape[1], _NOISE_SIGMA, controls_rng[1]),
+            matrix=noise_transform(
+                arm_embs.shape[1], self.controls["noise_sigma"], controls_rng[1]
+            ),
             chunk_ids=exact.chunk_ids,
             chunk_embs=exact.chunk_embs,
         )
         noisy = noisy_system.per_query_scores(arm_embs, arm_qrels, k=self.k)
-        truncated = exact.per_query_scores(arm_embs, arm_qrels, k=_TRUNCATE_K)
+        truncated = exact.per_query_scores(arm_embs, arm_qrels, k=int(self.controls["truncate_k"]))
         controls = {}
         for control_name, degraded in (
             ("drop_index", drop),
@@ -330,6 +345,7 @@ class Validator(PipelineStep):
             "n_per_arm": self.n_per_arm,
             "reuse_pipeline_for": self.reuse_pipeline_for,
             "arm_params": self.arm_params,
+            "controls": self.controls,
         }
 
     @classmethod

@@ -29,7 +29,7 @@ pipeline:
       dedup: {cos_threshold: 0.95}
       round_trip: {k: 10}
       uniqueness: {mode: promote, top_m: 5}
-  - {type: qrel_builder, params: {strategy: binary}}
+  - {type: qrel_builder, params: {strategy: relabel_nearest}}
   - {type: curator, params: {memorization_cos: 0.9}}
   - type: validator
     params:
@@ -40,18 +40,23 @@ pipeline:
       gates: {tau: 0.9, tau_ap: 0.8}
       arm_params:
         a0:
+          qrels: {strategy: relabel_nearest}
           llm_override:
             type: toy_chat
             params: {style: 0.45, noise: 0.55, base: chunks}
           gate: {checks: [dedup, zero_context, answerability, round_trip, uniqueness],
                  round_trip: {k: 10}, uniqueness: {mode: promote, top_m: 5}}
         a1:
+          qrels: {strategy: relabel_nearest}
           llm_override:
             type: toy_chat
             params: {style: 0.15, noise: 0.68, base: chunks}
         a2:
+          qrels: {strategy: relabel_nearest}
           spec: {n_chunks_per_seed: 1}
+          # noise 0.42 ~= sqrt(0.39^2 + 0.15^2): the vMF(kappa=400) dispersion the
+          # exemplar-mean base loses, plus the prototype's 0.15 emission jitter.
           llm_override:
             type: toy_chat
-            params: {style: 0.05, noise: 0.15, base: exemplars}
+            params: {style: 0.05, noise: 0.42, base: exemplars}
         oracle: {n_records: 500}

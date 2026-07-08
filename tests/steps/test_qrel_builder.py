@@ -82,3 +82,19 @@ def test_config_round_trip(min_resources: Resources) -> None:
     assert QrelBuilder.from_config(step.to_config(), min_resources).to_config() == {
         "strategy": "binary"
     }
+
+
+def test_relabel_nearest_strategy(min_resources: Resources) -> None:
+    """Gold is the single nearest chunk of the emitted query (SPEC §10)."""
+    # Candidate embedding == chunk 1's vector, but seed gold is chunk 0.
+    cand = _accepted_candidate(min_resources, "relabel me", gold=(0,))
+    ref = f"emb-{cand.query_id}"
+    min_resources.embeddings.add(
+        [ref], min_resources.embeddings.get([min_resources.chunks[1].chunk_id])
+    )
+    relabeled = cand.model_copy(update={"embedding_ref": ref})
+    state = PipelineState(gate_accepted=[relabeled])
+    state = QrelBuilder(min_resources, strategy="relabel_nearest").run(state)
+    record = state.accepted[0]
+    assert record.qrels == {min_resources.chunks[1].chunk_id: 1}
+    assert record.crucial == (min_resources.chunks[1].chunk_id,)

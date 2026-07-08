@@ -58,8 +58,9 @@ def test_reuse_pipeline_for_marks_a1(validated: tuple[Resources, PipelineState, 
     assert all(
         report["arms"][a]["reused_pipeline_records"] is False for a in ("a0", "a2", "oracle")
     )
-    # The a1 block was computed from the outer pipeline's accepted set.
-    assert report["arms"]["a1"]["n_records"] == len(state.accepted)
+    # The a1 block was computed from the outer pipeline's accepted set,
+    # capped at n_per_arm for arm comparability.
+    assert report["arms"]["a1"]["n_records"] == min(len(state.accepted), 24)
 
 
 @pytest.mark.parametrize("arm", ARM_NAMES)
