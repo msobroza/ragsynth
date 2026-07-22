@@ -75,12 +75,42 @@ def test_load_config_valid(tmp_path: Path, tiny_config: dict[str, Any]) -> None:
     assert load_config(path)["ragsynth"]["name"] == "tiny"
 
 
-def test_load_config_bad_schema_version(tmp_path: Path, tiny_config: dict[str, Any]) -> None:
+def test_load_config_accepts_schema_version_2(tmp_path: Path, tiny_config: dict[str, Any]) -> None:
+    """schema_version 2 loads and round-trips preserving 2 (v2 README trigger list)."""
     tiny_config["ragsynth"]["schema_version"] = 2
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(tiny_config))
-    with pytest.raises(ValueError, match="schema_version"):
+    loaded = load_config(path)
+    assert loaded["ragsynth"]["schema_version"] == 2
+
+    once = dump_config(loaded)
+    twice = dump_config(yaml.safe_load(once))
+    assert once == twice
+    assert yaml.safe_load(once)["ragsynth"]["schema_version"] == 2
+
+
+def test_load_config_unsupported_schema_version_names_accepted_and_file(
+    tmp_path: Path, tiny_config: dict[str, Any]
+) -> None:
+    """An out-of-range schema_version (e.g. 3) names the accepted set and the file."""
+    tiny_config["ragsynth"]["schema_version"] = 3
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(tiny_config))
+    with pytest.raises(ValueError, match=r"schema_version 3.*\(1, 2\)") as exc_info:
         load_config(path)
+    assert str(path) in str(exc_info.value)
+
+
+def test_v1_toy_config_round_trips_byte_stable() -> None:
+    """configs/v1_toy.yaml (schema v1) stays byte-stable and schema_version 1 (regression)."""
+    path = Path(__file__).resolve().parents[2] / "configs" / "v1_toy.yaml"
+    config = load_config(path)
+    assert config["ragsynth"]["schema_version"] == 1
+
+    once = dump_config(config)
+    twice = dump_config(yaml.safe_load(once))
+    assert once == twice
+    assert config_hash(yaml.safe_load(once)) == config_hash(config)
 
 
 def test_unknown_step_type_lists_known_keys(tiny_config: dict[str, Any]) -> None:

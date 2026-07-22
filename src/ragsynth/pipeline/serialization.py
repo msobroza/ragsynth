@@ -35,7 +35,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSIONS: tuple[int, ...] = (1, 2)
+"""Accepted ``ragsynth.schema_version`` values (v2 README "canonical trigger list").
+
+schema_version 1 semantics, outputs, and bytes stay untouched; schema_version 2
+is accepted and preserved but its features are validated by later tasks -- this
+loader only relaxes version acceptance (SPEC v2 §8, §13.2)."""
 
 
 def _populate_registries() -> None:
@@ -59,14 +64,14 @@ _DEFAULT_DEMAND: dict[str, Any] = {
 
 
 def load_config(path: Path) -> dict[str, Any]:
-    """Load and validate a run config (SPEC §13 schema v1).
+    """Load and validate a run config (SPEC §13 schema v1/v2).
 
     Raises:
         ValueError: On schema-version mismatch or missing required blocks.
         RegistryError: If any ``type`` key is unknown (message lists known keys).
     """
     config: dict[str, Any] = yaml.safe_load(Path(path).read_text())
-    validate_config(config)
+    validate_config(config, path=path)
     return config
 
 
@@ -92,8 +97,16 @@ def _llm_family(block: dict[str, Any]) -> str:
     return model.lower().split("-")[0].split("/")[-1]
 
 
-def validate_config(config: dict[str, Any]) -> list[str]:
+def validate_config(config: dict[str, Any], *, path: Path | None = None) -> list[str]:
     """Validate schema, registry keys, and the cross-family judge rule (SPEC §6.4).
+
+    ``schema_version`` may be 1 or 2 (v2 README "schema_version 2 — canonical
+    trigger list"): schema 1 semantics, outputs, and bytes are untouched;
+    schema-2 *feature* validation is out of scope here and lands in later tasks.
+
+    Args:
+        config: The parsed config mapping.
+        path: Source file, included in the error message when validation fails.
 
     Returns:
         Human-readable warnings (also logged).
@@ -104,9 +117,12 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     """
     _populate_registries()
     meta = config.get("ragsynth") or {}
-    if meta.get("schema_version") != SCHEMA_VERSION:
+    schema_version = meta.get("schema_version")
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        source = f" (file: {path})" if path is not None else ""
         raise ValueError(
-            f"unsupported schema_version {meta.get('schema_version')!r}; expected {SCHEMA_VERSION}"
+            f"unsupported schema_version {schema_version!r}{source}; "
+            f"accepted schema_version values are {SUPPORTED_SCHEMA_VERSIONS!r}"
         )
     for key in ("resources", "pipeline", "artifacts_dir"):
         if key not in config:
