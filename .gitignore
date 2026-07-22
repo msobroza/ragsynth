@@ -22,3 +22,9 @@ coverage.xml
 
 # Fitted-artifact npz bytes jitter 1 ULP across runs (PLAN D30)
 experiments/*/artifacts/
+
+# Local secrets & orchestration scratch
+.env
+.superpowers/
+data/benchmarks/
+data/embeddings/
