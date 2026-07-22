@@ -17,6 +17,7 @@ loading unchanged).
 | 03 | [Prompt-optimizer execution (MIPROv2, GEPA)](03-prompt-optimizer-execution.md) | R2 | none; triggered when 01 shows gate pass-rate / τ plateau |
 | 04 | [Vendi, MAUVE, soft movMF demand map](04-soft-demand-diversity-metrics.md) | §2.2 optional/v2 | none (report-only additions) |
 | 05 | [Distributed execution + ChromaDB backend](05-distributed-execution-db-backends.md) | §2.2 non-goal lifted; R6 hook | none; 01's larger corpora benefit from it |
+| 06 | [Content-coverage exploration](06-content-coverage-exploration.md) — chunk-cluster × demand-map hybrid | R6 hook; BCG lineage | after 01 (its real-corpus run is the trigger evaluation); pairs with 04 |
 
 Suggested execution order: **01 first** — it is the trigger-evaluation run that
 decides whether 02 (τ_AP stalls while τ passes) and 03 (pass-rate/τ plateau)
@@ -35,6 +36,7 @@ decisions (references to existing v1 decisions D1–D31 are unaffected):
 | 03 prompt optimizer | **D52–D61** |
 | 04 soft demand / diversity | **D62–D68** |
 | 05 distributed + chromadb | **D69–D77** |
+| 06 content-coverage exploration | **D78–D84** |
 
 ## schema_version 2 — canonical trigger list (single owner: this file)
 
@@ -49,5 +51,6 @@ schema 1 semantics, outputs, and bytes are untouched. A config MUST declare
 - `resources.demand.estimator: soft_movmf` (04)
 - `generator_llm.type: cached` (transcript replay), `partition.ladder`,
   `split_stratify_by`, or `validator.audit_export` (01)
+- `resources.demand.exploration` block or `seed_sampler.spec.exploration_eps` (06)
 
 Individual specs reference this table instead of re-defining the trigger set.
