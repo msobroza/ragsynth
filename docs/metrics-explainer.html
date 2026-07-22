@@ -1,0 +1,2483 @@
+<title>ragsynth metrics — interactive explainer</title>
+<style>
+/* ---------- tokens — deliberately light-only (professional report treatment) ---------- */
+:root, :root[data-theme="dark"], :root[data-theme="light"]{
+  color-scheme: light;
+  --page:#f7f8fb; --surface:#fcfcfd; --ink:#101b33; --ink-2:#44506b; --muted:#7c869c;
+  --grid:#e2e5ee; --axis:#c3c9d9; --ring:rgba(16,27,51,.10);
+  --real:#1849d6; --synth:#e8630c; --accent:#0b6e66;
+  --good:#006300; --bad:#d03b3b; --warn:#fab219;
+  --real-soft:rgba(24,73,214,.14); --synth-soft:rgba(232,99,12,.15);
+  --code-bg:#eef1f7;
+  --ph-why:#1d43d8; --ph-scope:#0b7d6e; --ph-what:#7c2fc9; --ph-how:#b01b7a;
+  --ph-concl:#b83c0a; --ph-annex:#925700;
+  --flow:linear-gradient(90deg,#1d43d8,#0b7d6e,#7c2fc9,#b01b7a,#e8630c);
+}
+
+/* ---------- base ---------- */
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);
+  font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0}
+.wrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:32px;
+  max-width:1180px;margin:0 auto;padding:0 20px 80px}
+@media (max-width:900px){ .wrap{grid-template-columns:minmax(0,1fr)} }
+
+/* nav rail */
+nav.rail{position:sticky;top:0;align-self:start;padding:28px 0 16px;
+  max-height:100vh;overflow-y:auto;font-size:13.5px}
+@media (max-width:900px){
+  nav.rail{position:sticky;top:0;z-index:30;background:var(--page);max-height:none;
+    overflow-x:auto;white-space:nowrap;padding:10px 0;border-bottom:1px solid var(--grid)}
+  nav.rail .grp{display:inline-block;margin-right:14px}
+  nav.rail .grp b{margin-right:6px}
+  nav.rail a{display:inline-block;margin-right:8px}
+}
+nav.rail b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin:14px 0 4px}
+nav.rail a{display:block;color:var(--ink-2);text-decoration:none;padding:2px 8px;border-radius:6px}
+nav.rail a:hover{color:var(--ink);background:var(--ring)}
+nav.rail a:focus-visible{outline:2px solid var(--accent)}
+
+main{min-width:0;padding-top:34px}
+
+/* scope worked example: pdf page, chunks, dialogue */
+.scopegrid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;margin:10px 0}
+@media(max-width:680px){.scopegrid{grid-template-columns:minmax(0,1fr)}}
+.pdfpage{background:#fff;border:1px solid var(--grid);box-shadow:0 2px 10px rgba(16,27,51,.10);
+  border-radius:4px;padding:14px 16px;font-size:11px;color:#30343f;line-height:1.55}
+.pdfpage .pdf-head{font-family:ui-monospace,monospace;font-size:8.5px;letter-spacing:.09em;
+  color:#9aa0ab;margin-bottom:8px}
+.pdfpage h5{margin:0 0 6px;font-size:12.5px;color:#14181f}
+.pdfpage p{margin:0 0 6px}
+.pdfpage table{border-collapse:collapse;font-size:10.5px;margin-top:4px}
+.pdfpage th,.pdfpage td{border:1px solid #ccd0d8;padding:2px 9px;text-align:left}
+.chunkcol{display:flex;flex-direction:column;gap:10px}
+.chunkbox{background:var(--code-bg);border-radius:8px;padding:10px 12px;
+  font:11.5px/1.55 ui-monospace,monospace;white-space:pre-wrap;color:var(--ink-2)}
+.chunkbox span{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px}
+.dlg{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.dlg .turn{border:1px solid var(--grid);border-radius:10px;padding:8px 12px;font-size:13.5px;max-width:60ch}
+.dlg .turn.u{background:var(--surface)}
+.dlg .turn.a{background:var(--code-bg);margin-left:26px;color:var(--ink-2)}
+.dlg .turn b{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:3px}
+.pick{display:block;margin-top:6px;font-size:12px;font-weight:650}
+.pick.ok{color:var(--good)} .pick.no{color:var(--bad)}
+.pipe button.par{border-style:dashed}
+
+/* pipeline stepper */
+.pipe{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0}
+.pipe button{border:1.5px solid var(--grid);background:var(--surface);border-radius:999px;
+  padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--ink-2);font-family:inherit}
+.pipe button:hover{border-color:var(--accent)}
+.pipe button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:#fff}
+.pipe button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pipe .arr{color:var(--muted);font-size:12px}
+.pipe-panel{border:1px solid var(--grid);border-radius:10px;padding:16px 18px;background:var(--page)}
+.pp-row{display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px;margin-bottom:9px;font-size:14px}
+.pp-row .k{font-family:ui-monospace,monospace;font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);padding-top:2px}
+.pp-row .v a{color:var(--accent)}
+.pipe-nav{display:flex;gap:8px;margin-top:10px}
+.worked{border:1px dashed var(--axis);border-radius:10px;padding:12px 16px;margin:12px 0;
+  font-size:14px;max-width:70ch;background:var(--surface)}
+.worked b.t{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px}
+
+/* phase system: cool -> warm marks the reading path */
+#why>h2{color:var(--ph-why)} #scope>h2{color:var(--ph-scope)} #system>h2{color:var(--ph-what)}
+#failuremodes>h2,#fm-summary>h2,#fidelity>h2,#efficiency>h2,#validity>h2,#diversitySec>h2{color:var(--ph-how)} #method>h2{color:var(--ph-concl)}
+#conclusion>h2{color:var(--ph-concl)} #annex>h2{color:var(--ph-annex)}
+.hero-rule{height:4px;background:var(--flow);border-radius:2px;max-width:430px;margin:16px 0 18px}
+.card.concl{position:relative;overflow:hidden}
+.card.concl::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--flow)}
+
+/* story / failure modes */
+.story{margin:34px 0 8px}
+.story .big{font-size:16.5px;max-width:66ch;color:var(--ink)}
+.story .big b{color:var(--accent)}
+.fm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0 6px}
+@media (max-width:640px){ .fm-grid{grid-template-columns:minmax(0,1fr)} }
+.fm{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px 18px;
+  display:flex;flex-direction:column;gap:8px}
+.fm .n{font-family:ui-monospace,monospace;font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted)}
+.fm h4{margin:0;font-size:16px;letter-spacing:-.01em}
+.fm p{margin:0;font-size:13.5px;color:var(--ink-2)}
+.fm svg{width:100%;height:78px;margin:2px 0}
+.fm a{margin-top:auto;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+.fm a:hover{text-decoration:underline}
+.block-lede{color:var(--ink-2);font-size:15px;max-width:68ch;margin:10px 0 0}
+.fm.oos{border-style:dashed;background:transparent}
+.badge{display:inline-block;border:1px solid var(--accent);color:var(--accent);border-radius:999px;
+  padding:1px 8px;font-size:10px;margin-left:6px;letter-spacing:.05em;text-transform:none}
+.pathrow a{color:var(--accent);text-decoration:none;font-weight:600}
+.pathrow a:hover{text-decoration:underline}
+.howto{font-size:13.5px;color:var(--muted);max-width:70ch;margin:14px 0 0;
+  border-top:1px dashed var(--grid);padding-top:12px}
+
+/* header */
+header.hero{margin-bottom:26px}
+.eyebrow{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
+  font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+h1{font-size:clamp(26px,4vw,38px);line-height:1.12;margin:0 0 12px;font-weight:750;
+  letter-spacing:-.02em;text-wrap:balance}
+.lede{color:var(--ink-2);max-width:62ch;margin:0 0 14px}
+.legend-strip{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:13.5px;color:var(--ink-2)}
+.chip{display:inline-flex;align-items:center;gap:7px}
+.chip.wide{display:inline;line-height:1.9}
+.dot{width:11px;height:11px;border-radius:50%;flex:none}
+.dot.real{background:var(--real)} .dot.synth{background:var(--synth)}
+
+/* sections & cards */
+section{margin:44px 0 0;scroll-margin-top:70px}
+h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid var(--grid);padding-bottom:8px;margin:0 0 4px;font-weight:650}
+h2 .q{display:block;text-transform:none;letter-spacing:0;font-size:21px;color:var(--ink);
+  font-weight:750;margin-top:6px;text-wrap:balance}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;
+  padding:22px 24px;margin:20px 0;scroll-margin-top:70px}
+.card h3{margin:0 0 4px;font-size:18.5px;letter-spacing:-.01em}
+.card .sub{color:var(--ink-2);font-size:14.5px;margin:0 0 14px;max-width:64ch}
+.steps{margin:12px 0;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;position:relative;padding:2px 0 10px 40px;max-width:66ch}
+.steps li::before{content:counter(s);position:absolute;left:0;top:3px;width:24px;height:24px;
+  border:1.5px solid var(--accent);color:var(--accent);border-radius:50%;
+  font:600 12.5px/22px ui-monospace,monospace;text-align:center}
+
+/* formula panel */
+.formula{background:var(--code-bg);border-radius:10px;padding:14px 18px;margin:12px 0;
+  overflow-x:auto;font-size:17px}
+.formula .cap{font-size:12px;color:var(--muted);font-family:ui-monospace,monospace;
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.m{font-family:"STIX Two Math","Cambria Math","Times New Roman",serif;font-style:italic;white-space:nowrap}
+.mr{font-style:normal} /* roman inside math */
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;
+  margin:0 .15em;line-height:1.25;position:relative;top:-0.1em}
+.frac .n{border-bottom:1px solid currentColor;padding:0 .25em}
+.frac .d{padding:0 .25em}
+.bigop{font-size:1.5em;font-style:normal;vertical-align:-0.15em}
+.opsub{display:inline-flex;flex-direction:column;vertical-align:-1.1em;line-height:1.05;
+  font-size:.72em;text-align:center;font-style:normal;margin-left:-0.1em;margin-right:.25em}
+.sqrt{border-top:1.2px solid currentColor;padding:0 .2em;margin-left:.1em}
+sub,sup{font-size:.68em}
+.note{font-size:13.5px;color:var(--ink-2);max-width:66ch}
+
+/* ragsynth callout */
+.rs{border-left:3px solid var(--accent);background:var(--ring);border-radius:0 10px 10px 0;
+  padding:10px 16px;margin:14px 0;font-size:14px;max-width:70ch}
+.rs b{color:var(--accent)}
+.refline{font-size:12.5px;color:var(--muted);margin-top:10px}
+.refline a{color:var(--muted)}
+
+/* demo blocks */
+.demo{border:1px solid var(--grid);border-radius:10px;padding:14px 16px;margin:16px 0;background:var(--page)}
+.demo .dhead{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.demo .dtitle{font-size:12px;font-family:ui-monospace,monospace;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;margin:8px 0 10px}
+.ctl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2)}
+.ctl input[type=range]{width:140px;accent-color:var(--accent)}
+.ctl .val{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--ink);min-width:44px;
+  font-variant-numeric:tabular-nums}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.presets button,.copybtn{border:1px solid var(--grid);background:var(--surface);color:var(--ink-2);
+  border-radius:999px;padding:4px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.presets button:hover,.copybtn:hover{border-color:var(--accent);color:var(--ink)}
+.presets button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.presets button:focus-visible,.copybtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.readouts{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 2px}
+.ro{background:var(--surface);border:1px solid var(--grid);border-radius:9px;padding:8px 14px;min-width:110px}
+.ro .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.ro .v{font-family:ui-monospace,monospace;font-size:19px;font-variant-numeric:tabular-nums}
+.ro .s{font-size:11.5px;color:var(--muted)}
+.gate{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:650;
+  border-radius:999px;padding:3px 10px;border:1px solid}
+.gate.pass{color:var(--good);border-color:var(--good)}
+.gate.fail{color:var(--bad);border-color:var(--bad)}
+svg{display:block;max-width:100%}
+svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.svgbox{overflow-x:auto}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--page);
+  font:12.5px/1.45 ui-monospace,monospace;padding:6px 9px;border-radius:7px;opacity:0;
+  transition:opacity .08s;z-index:99;max-width:260px;white-space:pre}
+@media (prefers-reduced-motion: reduce){ .tip{transition:none} }
+
+/* ranking demo */
+.ranklists{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:640px}
+@media (max-width:640px){ .ranklists{grid-template-columns:1fr} }
+.ranklists h4{margin:0 0 6px;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.rk{list-style:none;margin:0;padding:0}
+.rk li{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--grid);
+  border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:14px}
+.rk .pos{font-family:ui-monospace,monospace;color:var(--muted);width:18px;font-size:12.5px}
+.rk .nm{flex:1}
+.rk button{border:1px solid var(--grid);background:none;color:var(--ink-2);border-radius:6px;
+  width:26px;height:24px;cursor:pointer;font-size:12px;line-height:1}
+.rk button:hover{border-color:var(--accent);color:var(--ink)}
+.rk li.moved{border-color:var(--synth)}
+
+/* tables & footer */
+table.small{border-collapse:collapse;font-size:13px;margin:10px 0;font-variant-numeric:tabular-nums}
+table.small th,table.small td{border-bottom:1px solid var(--grid);padding:4px 12px 4px 0;text-align:left}
+table.small th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+.refs{font-size:14px}
+.refs li{margin-bottom:8px;max-width:75ch}
+.refs a{color:var(--accent)}
+footer{margin-top:60px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--grid);padding-top:14px}
+</style>
+
+<div class="tip" id="tip" role="status" aria-hidden="true"></div>
+
+<div class="wrap">
+<nav class="rail" aria-label="Sections">
+  <b>I · Why</b>
+  <a href="#why">Why this matters</a>
+  <a href="#modes">Four failure modes</a>
+  <b>II · Scope</b>
+  <a href="#scope">v1 boundaries</a>
+  <div class="grp"><b>III · The system</b>
+  <a href="#pipeline">The generation pipeline</a>
+  <a href="#arms">Four sampling strategies</a></div>
+  <div class="grp"><b>IV · FM 1 — Fidelity</b>
+  <a href="#kl">KL · cosine profiles</a>
+  <a href="#c2st">C2ST &amp; MMD</a>
+  <a href="#wc2st">Within-cluster C2ST</a></div>
+  <div class="grp"><b>FM 2 — Efficiency</b>
+  <a href="#notation">Notation</a>
+  <a href="#coverage">Coverage — the BCG floors</a>
+  <a href="#ess">Weights, ESS &amp; headline</a>
+  <a href="#mauve">MAUVE — both failures</a></div>
+  <div class="grp"><b>FM 3 — Validity</b>
+  <a href="#tau">τ, τ<sub>AP</sub>, RBO</a>
+  <a href="#controls">Positive controls</a></div>
+  <div class="grp"><b>FM 4 — Diversity</b>
+  <a href="#diversity">Distinct-n &amp; Vendi</a>
+  <a href="#cov-vs-div">Coverage ↔ diversity</a>
+  <a href="#fm-summary">Summary — all four</a></div>
+  <div class="grp"><b>V · Our method</b>
+  <a href="#method">A2 — idea &amp; algorithm</a>
+  <a href="#a2-algo">Step by step</a>
+  <a href="#theory">Why it works (theory)</a></div>
+  <b>VI · Conclusion</b>
+  <a href="#conclusion">Takeaways &amp; next steps</a>
+  <b>Annex</b>
+  <a href="#annex">CiteVQA &amp; MTRAG</a>
+  <a href="#refs">References</a>
+</nav>
+
+<main>
+<header class="hero" id="intro">
+  <div class="eyebrow">ragsynth · SPEC §8–9 · benchmark-validation metrics</div>
+  <h1>The ragsynth metric stack — an interactive guide</h1>
+  <div class="hero-rule" aria-hidden="true"></div>
+  <p class="lede">ragsynth generates test queries automatically, for evaluating RAG retrieval when labeled real queries are scarce. Its rule is <strong>validity over vibes</strong>: a generated test set is trusted only if it <em>looks like</em> real traffic (fidelity), <em>covers</em> what users ask (efficiency), and <em>leads to the same decisions</em> as real queries (validity). Numbers labeled "In ragsynth" are committed v1 experiment results.</p>
+  <div class="legend-strip">
+    <span class="chip"><span class="dot real"></span>real / anchor queries</span>
+    <span class="chip"><span class="dot synth"></span>synthetic queries</span>
+    <span class="chip"><span class="gate pass">✓ gate pass</span></span>
+    <span class="chip"><span class="gate fail">✗ gate fail</span></span>
+    <span class="chip wide">sampling strategies: <b>A0</b> random · <b>A1</b> stratified cluster sampling · <b>A2</b> distribution-matched · <b>ORACLE</b> held-out real
+      &nbsp;<a href="#arms" style="color:var(--accent)">what these mean ↓</a></span>
+    <span class="chip wide pathrow">reading path:
+      <a href="#why" style="color:var(--ph-why)">Why</a> →
+      <a href="#scope" style="color:var(--ph-scope)">Scope</a> →
+      <a href="#system" style="color:var(--ph-what)">System</a> →
+      <a href="#failuremodes" style="color:var(--ph-how)">Failure modes</a> →
+      <a href="#method" style="color:var(--ph-concl)">Our method</a> →
+      <a href="#conclusion" style="color:var(--ph-annex)">Conclusion</a> →
+      <a href="#annex" style="color:var(--ph-annex)">Annex</a></span>
+  </div>
+</header>
+
+<!-- ================= STORY ================= -->
+<section class="story" id="why">
+  <h2>I · Why <span class="q">Why validating a generated test set matters</span></h2>
+  <p class="big" style="margin-top:14px">Your knowledge base changes every week, so a hand-labeled test set goes stale quickly. Generating queries from your own documents fixes freshness — but an LLM asked to "write a question about this chunk" produces polished paraphrases no real user would type.</p>
+  <p class="big">The stakes are concrete: this test set decides which embedding model ships, whether a
+  regression blocks a release, and whether quality is drifting. A wrong benchmark does not just waste effort — it points those decisions in the wrong
+  direction, with confidence.</p>
+  <p class="big" id="modes" style="margin-top:26px">Concretely, a generated test set can mislead you in <b>four specific ways</b>. Each gets its
+  own metric family — that is the structure of Part IV. Running example throughout: one real user question,
+  <i>"Is gradual water seepage covered by the contents policy?"</i>, and the chunk that answers
+  it — extracted from an insurance policy PDF (the full page and dialogue follow in Part II):</p>
+  <div class="chunkbox" style="max-width:560px;margin:10px 0 4px"><span>the chunk that answers it · extracted from the policy PDF</span>## Section 4 — Water damage
+Escape-of-water damage is covered when caused by a sudden
+burst of internal plumbing. Gradual seepage is excluded
+unless detected within 14 days.</div>
+  <div class="fm-grid">
+    <div class="fm">
+      <span class="n">failure mode 1 → fidelity</span>
+      <h4>It doesn't sound like your users</h4>
+      <svg viewBox="0 0 220 78" aria-label="Two point clouds that barely overlap">
+        <circle cx="55" cy="42" r="26" fill="var(--real-soft)"/><circle cx="150" cy="36" r="26" fill="var(--synth-soft)"/>
+        <circle cx="48" cy="38" r="3" fill="var(--real)"/><circle cx="62" cy="50" r="3" fill="var(--real)"/><circle cx="58" cy="32" r="3" fill="var(--real)"/>
+        <circle cx="143" cy="30" r="3" fill="var(--synth)"/><circle cx="157" cy="42" r="3" fill="var(--synth)"/><circle cx="151" cy="26" r="3" fill="var(--synth)"/>
+        <line x1="103" y1="8" x2="103" y2="70" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.6"/>
+      </svg>
+      <p>Real queries are short, messy, and often only partly answerable; generated paraphrases are neither. If a simple classifier can separate the two clouds, the test set does not represent your users.</p>
+      <p style="margin:6px 0 0;font-size:12.5px"><b style="color:var(--good)">✓</b> "Is gradual
+      water seepage covered by the contents policy?" — how a person asks.</p>
+      <p style="margin:2px 0 8px;font-size:12.5px"><b style="color:var(--bad)">✗</b> "Under which
+      circumstances does Section 4's escape-of-water provision exclude gradually occurring
+      seepage?" — how a chunk talks.</p>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">studied in: Chroma, <i>Generative Benchmarking</i> 2025 (polished, overly clean
+      queries) · Penha et al., ECIR 2022 (real queries are messy)</p>
+      <a href="#kl">Fidelity — "could a detector spot the fakes?" ↓</a>
+    </div>
+    <div class="fm">
+      <span class="n">failure mode 2 → efficiency &amp; coverage</span>
+      <h4>It asks about the wrong things</h4>
+      <svg viewBox="0 0 220 78" aria-label="Demand bars mismatched by synthetic bars, one topic empty">
+        <rect x="18" y="18" width="16" height="46" fill="var(--real)"/><rect x="36" y="46" width="16" height="18" fill="var(--synth)"/>
+        <rect x="70" y="34" width="16" height="30" fill="var(--real)"/><rect x="88" y="26" width="16" height="38" fill="var(--synth)"/>
+        <rect x="122" y="44" width="16" height="20" fill="var(--real)"/><rect x="140" y="24" width="16" height="40" fill="var(--synth)"/>
+        <rect x="174" y="50" width="16" height="14" fill="var(--real)"/>
+        <text x="200" y="62" font-size="15" fill="var(--bad)">∅</text>
+        <line x1="10" y1="64" x2="212" y2="64" stroke="var(--axis)"/>
+      </svg>
+      <p>Real demand is uneven — one toy-world topic is 40% of traffic. Uniform generation over-tests rare topics, under-tests frequent ones, and can leave topics with <b>zero</b> queries. The BCG rule: report <i>coverage, not averages</i>.</p>
+      <p style="margin:6px 0 0;font-size:12.5px"><b style="color:var(--good)">✓</b> "Is gradual
+      water seepage covered by the contents policy?" — lands in the most-asked topic, in its
+      real proportion.</p>
+      <p style="margin:2px 0 8px;font-size:12.5px"><b style="color:var(--bad)">✗</b> "How long
+      should I simmer a tomato sauce?" — perfectly fluent, but no policyholder asks it: generated
+      mass lands outside every topic real users care about.</p>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">studied in: Broestl et al. (BCG), arXiv 2510.00001 (semantic test coverage) ·
+      <i>Coverage, Not Averages</i>, arXiv 2604.20763</p>
+      <a href="#coverage">Efficiency — "the right topics, in the right proportions?" ↓</a>
+    </div>
+    <div class="fm">
+      <span class="n">failure mode 3 → validity</span>
+      <h4>It reaches different conclusions</h4>
+      <svg viewBox="0 0 220 78" aria-label="Two ranked lists whose lines cross">
+        <rect x="14" y="10" width="62" height="14" rx="4" fill="var(--real-soft)"/><rect x="14" y="32" width="62" height="14" rx="4" fill="var(--real-soft)"/><rect x="14" y="54" width="62" height="14" rx="4" fill="var(--real-soft)"/>
+        <rect x="144" y="10" width="62" height="14" rx="4" fill="var(--synth-soft)"/><rect x="144" y="32" width="62" height="14" rx="4" fill="var(--synth-soft)"/><rect x="144" y="54" width="62" height="14" rx="4" fill="var(--synth-soft)"/>
+        <line x1="78" y1="17" x2="142" y2="39" stroke="var(--bad)" stroke-width="1.8"/>
+        <line x1="78" y1="39" x2="142" y2="17" stroke="var(--bad)" stroke-width="1.8"/>
+        <line x1="78" y1="61" x2="142" y2="61" stroke="var(--good)" stroke-width="1.8"/>
+      </svg>
+      <p>A test set exists to compare systems and catch failures. If it ranks systems differently than real queries would — or shows no change when you damage the index on purpose — it creates false confidence.</p>
+      <p style="margin:6px 0 0;font-size:12.5px"><b style="color:var(--good)">✓</b> "Is gradual
+      water seepage covered by the contents policy?" — the words don't match the chunk, so only
+      the better retriever X finds Section 4 first. Real users see X win; the test should too.</p>
+      <p style="margin:2px 0 8px;font-size:12.5px"><b style="color:var(--bad)">✗</b> "Does
+      Section 4 exclude gradual seepage not detected within 14 days?" — reuses the chunk's own
+      words, so even the weak retriever Y nails it. Every system looks equal, the ranking flips,
+      and you ship Y.</p>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">studied in: Rahmani et al., SIGIR 2024 (do synthetic collections rank systems like
+      real ones?) · Sakai, SIGIR 2006 (does a test set detect real degradation?)</p>
+      <a href="#tau">Validity — "would you make the same decision?" ↓</a>
+    </div>
+    <div class="fm">
+      <span class="n">failure mode 4 → diversity</span>
+      <h4>It repeats the same question</h4>
+      <svg viewBox="0 0 220 78" aria-label="Many overlapping dots collapsed at one spot">
+        <circle cx="66" cy="40" r="4" fill="var(--synth)"/><circle cx="71" cy="36" r="4" fill="var(--synth)" fill-opacity=".7"/>
+        <circle cx="62" cy="44" r="4" fill="var(--synth)" fill-opacity=".7"/><circle cx="68" cy="45" r="4" fill="var(--synth)" fill-opacity=".5"/>
+        <circle cx="73" cy="41" r="4" fill="var(--synth)" fill-opacity=".5"/><circle cx="64" cy="37" r="4" fill="var(--synth)" fill-opacity=".4"/>
+        <text x="98" y="45" font-size="12" fill="var(--muted)">vs</text>
+        <circle cx="132" cy="24" r="4" fill="var(--synth)"/><circle cx="168" cy="38" r="4" fill="var(--synth)"/>
+        <circle cx="146" cy="56" r="4" fill="var(--synth)"/><circle cx="190" cy="20" r="4" fill="var(--synth)"/>
+        <circle cx="199" cy="52" r="4" fill="var(--synth)"/><circle cx="127" cy="44" r="4" fill="var(--synth)"/>
+      </svg>
+      <p>Many near-copies of one good query pass every test above. Simple diversity metrics catch the repetition.</p>
+      <p style="margin:6px 0 0;font-size:12.5px"><b style="color:var(--good)">✓</b> "Is seepage
+      covered?" · "Which excess applies?" · "How fast must I report a claim?" — many questions.</p>
+      <p style="margin:2px 0 8px;font-size:12.5px"><b style="color:var(--bad)">✗</b> "Is gradual
+      seepage covered?" rephrased four hundred times.</p>
+      <p style="margin:0 0 6px;font-size:11px;color:var(--muted)">studied in: Friedman &amp; Dieng, TMLR 2023 (measuring mode collapse) · Katsis et
+      al., 2025 (MTRAG-S: synthetic generation collapses vs human data)</p>
+      <a href="#diversity">Diversity — "is it actually many questions?" ↓</a>
+    </div>
+  </div>
+
+</section>
+
+<!-- ================= SCOPE ================= -->
+<section id="scope">
+  <h2>II · Scope <span class="q">What v1 covers — and what it deliberately leaves out</span></h2>
+  <p class="block-lede">v1 generates <b>standalone, single-turn questions from text chunks</b>.
+  Two harder settings are deliberate boundaries, not oversights — the domain model already
+  carries the fields they will need:</p>
+
+  <div class="worked"><b class="t">Worked example — an insurance dialogue, one PDF page, and what v1 selects</b>
+    <div class="scopegrid">
+      <div class="pdfpage" role="img" aria-label="Illustrative insurance policy PDF page">
+        <div class="pdf-head">HOUSEHOLD CONTENTS POLICY (ILLUSTRATIVE) · PAGE 12</div>
+        <h5>Section 4 — Water damage</h5>
+        <p>Escape-of-water damage is covered when caused by a sudden burst of internal plumbing.
+        Gradual seepage is excluded unless detected within 14 days.</p>
+        <p>Claims must be reported within 30 days of discovery.</p>
+        <table><tr><th>Plan</th><th>Excess</th></tr>
+          <tr><td>Standard</td><td>€500</td></tr><tr><td>Plus</td><td>€250</td></tr></table>
+      </div>
+      <div class="chunkcol">
+        <div class="chunkbox"><span>extracted chunk 4-a · markdown</span>## Section 4 — Water damage
+Escape-of-water damage is covered when caused by a sudden
+burst of internal plumbing. Gradual seepage is excluded
+unless detected within 14 days.</div>
+        <div class="chunkbox"><span>extracted chunk 4-b · markdown</span>Claims must be reported within 30 days of discovery.
+Excess per water-damage claim: Standard €500 · Plus €250.</div>
+      </div>
+    </div>
+    <div class="dlg">
+      <div class="turn u"><b>User · turn 1</b>"Is gradual water seepage covered by the contents policy?"
+        <span class="pick ok">✓ selected — standalone (no prior context needed) and grounded in chunk 4-a, which becomes its gold label</span></div>
+      <div class="turn a"><b>Assistant</b>"Only if it is detected within 14 days; otherwise it is excluded."</div>
+      <div class="turn u"><b>User · turn 2</b>"And if I only notice it after a month?"
+        <span class="pick no">✗ not selected — "it" depends on turn 1: non-standalone (the MTRAG setting)</span></div>
+      <div class="turn u"><b>User · turn 3</b>"Which excess applies in the table on this page?"
+        <span class="pick no">✗ not selected — the evidence is a page region, not a text chunk (the ViDoRe V3 / CiteVQA setting)</span></div>
+    </div>
+    <p class="note" style="margin:8px 0 0">From this whole dialogue, v1 keeps exactly one item:
+    turn 1 paired with chunk 4-a. Turns 2 and 3 are the two boundary cards below.</p>
+  </div>
+
+  <div class="fm-grid">
+    <div class="fm oos">
+      <span class="n">out of scope · v1 <span class="badge">→ v3 roadmap</span></span>
+      <h4>Visual evidence — pages, layouts, bounding boxes</h4>
+      <p>Documents are treated as text. Evidence that lives in layout — tables, figures, regions
+      of a scanned page — is the setting of <b>ViDoRe V3</b> (multi-evidence visual document
+      retrieval) and <b>CiteVQA</b> (each answer must cite a bounding-box region). ragsynth
+      chunks already carry <code>canonical_bbox</code> and <code>page_image_ref</code> metadata
+      for this future.</p>
+      <a href="#annex">Annex: how CiteVQA builds its data ↓</a>
+    </div>
+    <div class="fm oos">
+      <span class="n">out of scope · v1 <span class="badge">→ v2/v3 roadmap</span></span>
+      <h4>Multi-turn conversation</h4>
+      <p>Every generated query stands alone. Real assistants face follow-ups that depend on
+      context — <b>MTRAG</b> shows that state-of-the-art RAG systems struggle exactly there:
+      later turns, non-standalone and unanswerable questions. The domain model reserves a
+      <code>dialogue_context</code> field for this stratum.</p>
+      <a href="#annex">Annex: how MTRAG builds its data ↓</a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHAT ================= -->
+<section class="story" id="system">
+  <h2>III · The system <span class="q">How test queries are generated: one shared pipeline, four sampling strategies</span></h2>
+  <p class="big" style="margin-top:14px">Two pieces, in reading order: the pipeline every strategy shares, then the four sampling
+  strategies that plug into its first step. Part IV measures them — and then presents ours.</p>
+
+  
+
+  
+
+  
+
+  <div class="card" id="pipeline">
+    <h3>The generation pipeline — seven steps from chunks to a validated test set</h3>
+    <p class="sub">This is what actually runs: <code>SeedSampler → ContextAssembler →
+    QueryGenerator → VerificationGate → QrelBuilder → Curator → Validator</code>, with one
+    <b>parallel track</b> (the dashed node): the LLM judge that serves the gate and the labels —
+    and must itself be aligned with human judgment. Click a step for what it does, a concrete
+    example, the supporting paper, and how improving it pays off.</p>
+    <div class="pipe" id="pipe-nodes" role="tablist" aria-label="Pipeline steps"></div>
+    <div class="pipe-panel" id="pipe-panel"></div>
+    <div class="pipe-nav">
+      <button class="copybtn" id="pipe-prev">← previous step</button>
+      <button class="copybtn" id="pipe-next">next step →</button>
+    </div>
+  </div>
+
+  <div class="formula" id="arms" style="margin-top:16px"><div class="cap">the four sampling strategies — compared in every demo and every result</div>
+    <p class="note" style="margin:6px 0 8px">A <b>sampling strategy</b> is the choice made at step 1 of the pipeline
+    (<em>what to generate from</em>). Every run compares four of them under identical conditions,
+    so a score is always read against the baseline it must beat and the ceiling it cannot
+    exceed:</p>
+    <table class="small"> <tr><th>strategy</th><th>in plain words</th><th>what it gets right</th></tr>
+      <tr><td><b>A0 — random sampling</b></td><td>Pick chunks at random and ask the generator "write a question about this." Knows nothing about real users.</td><td>Nothing — it is the control.</td></tr>
+      <tr><td><b>A1 — stratified cluster sampling</b></td><td>Cluster real traffic into topics, measure each topic's demand share, and generate matching <em>per-topic quotas</em>, with real queries as style examples.</td><td>The topic <em>proportions</em> — but not how queries look inside a topic.</td></tr>
+      <tr><td><b>A2 — distribution-matched sampling</b></td><td>Sample a <em>target location</em> from a model of where real queries live in embedding space, pull nearby chunks as evidence, and generate a query that lands on that target.</td><td>Proportions <em>and</em> within-topic shape — what quotas cannot fix.</td></tr>
+      <tr><td><b>ORACLE</b></td><td>No generation: a held-out slice of real queries.</td><td>The measuring stick — what real queries score, noise included.</td></tr>
+    </table>
+    <p class="note" style="margin-top:8px">Recurring v1 pattern: A0 fails most tests; A1 fixes proportions only; A2 also fixes within-topic shape; ORACLE marks the ceiling. (In the ragsynth codebase and reports, sampling strategies are called <code>arms</code>, named <code>naive</code>, <code>quota</code>, and <code>spec_first</code>.)</p>
+    <p class="note" style="margin-top:8px">A2 is our proposition. Following paper order, its full
+    algorithm — and why it works — comes after the fidelity and efficiency instruments:
+    <a href="#method">Our method ↓</a>.</p>
+
+    
+  </div>
+
+  
+  
+  <p class="howto"><b>How to read this page:</b> each block opens with its question; each card runs plain-words claim → numbered steps → live demo → formula → real v1 numbers. Formulas come last: the demo has already shown what they compute.</p>
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+</section>
+
+<!-- ================= FIDELITY ================= -->
+<section id="failuremodes">
+  <h2>IV · Failure modes <span class="q">Four ways to be wrong — and the metrics that catch each</span></h2>
+  <p class="block-lede">The four failure modes from Part I, now measured one by one. Each
+  subsection opens with its question and closes with real v1 numbers; a summary collects all
+  four into one picture before we present our method.</p>
+</section>
+
+<section id="fidelity">
+  <h2>Failure modes · 1 — Fidelity <span class="q">Does the synthetic query cloud look like real traffic?</span></h2>
+  <p class="block-lede">The idea: turn real and generated queries into points in one space — an <em>embedding</em> places similar meanings near each other — and try to tell the two clouds apart. Three tests of increasing strictness (KL profile, C2ST classifier, MMD kernel test), then the strictest: the same classifier <em>inside each topic</em>, where aggregate matching cannot hide anything.</p>
+
+  <!-- ---- KL ---- -->
+  <div class="card" id="kl">
+    <h3>Metric · KL divergence of query→corpus cosine profiles</h3>
+    <p class="sub">Chroma's representativeness check. It compares one number per query — <em>how close is it to its nearest chunk?</em> Real users ask things the corpus only partly answers; generated paraphrases sit unnaturally close.</p>
+    <ol class="steps">
+      <li>For every query (real and synthetic), compute its <b>top-1 cosine similarity</b> to the
+        whole chunk corpus: <span class="m">s<sub>i</sub> = max<sub>j</sub> q<sub>i</sub>·c<sub>j</sub></span> (embeddings L2-normalized).</li>
+      <li>Histogram both sides on <b>shared bins</b> (50 in ragsynth), add a small ε to every bin so
+        no bin is empty, normalize each side to sum to 1.</li>
+      <li>Take the KL divergence of real (<span class="m">p</span>) from synthetic (<span class="m">q</span>).
+        It is ≈ 0 when the two profiles match and grows as they separate. The measure is asymmetric
+        on purpose: it strongly penalizes a generated set that has no queries where real traffic
+        is common.</li>
+    </ol>
+    <div class="formula"><div class="cap">definition</div>
+      <span class="m"><span class="mr">KL</span>(p<span class="mr">∥</span>q) =
+      <span class="bigop">Σ</span><span class="opsub"><span>b</span></span>
+      p<sub>b</sub>&thinsp;<span class="mr">ln</span><span class="frac"><span class="n">p<sub>b</sub></span><span class="d">q<sub>b</sub></span></span></span>
+      <div class="note" style="margin-top:8px">where <span class="m">b</span> runs over the shared bins.
+      Chroma's steered target on real data is roughly ≤ 0.16 — a <em>reference band</em>, not a hard gate.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — shift the synthetic profile, switch the embedding model, watch KL react</span>
+        <div class="presets" id="kl-presets" role="group" aria-label="KL presets"></div></div>
+      <div class="controls">
+        <span class="ctl" style="color:var(--muted)">embedding model:</span>
+        <div class="presets" id="kl-emb" role="group" aria-label="embedding model"></div>
+      </div>
+      <div class="controls">
+        <label class="ctl">shift <input type="range" id="kl-shift" min="-0.20" max="0.25" step="0.005" value="0">
+          <span class="val" id="kl-shift-v">+0.00</span></label>
+        <label class="ctl">spread × <input type="range" id="kl-spread" min="0.35" max="2.2" step="0.05" value="1">
+          <span class="val" id="kl-spread-v">1.00</span></label>
+      </div>
+      <div class="svgbox" id="kl-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">KL(real∥synth)</div><div class="v" id="kl-out">–</div>
+          <div class="s" id="kl-band">–</div></div>
+      </div>
+      <div class="note" id="kl-emb-note" style="margin:6px 0 8px"></div>
+      <button class="copybtn" id="kl-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> toy run, seed 0: A0 scored 0.198 (queries too close to the chunks); A1/A2 ≈ 0.38. The deliberately weak local-corpus run (hashed n-gram embeddings, mock LLM) scored KL > 10 — correctly reported as unusable.</div>
+    <div class="refline">Chroma, <i>Generative Benchmarking</i> (2025) · implementation:
+    <code>metrics/fidelity.py&nbsp;·&nbsp;kl_similarity_distributions</code></div>
+  </div>
+
+  <!-- ---- C2ST + MMD ---- -->
+  <div class="card" id="c2st">
+    <h3>Metric · C2ST &amp; MMD — two-sample tests on the embedding cloud</h3>
+    <p class="sub">One question, two tests: <em>could anything tell the real and generated clouds apart?</em> C2ST trains a classifier and reports its separation; MMD compares the clouds directly, with no training.</p>
+    <ol class="steps">
+      <li><b>C2ST</b> (classifier two-sample test): label real = 0, synthetic = 1; fit a logistic
+        regression with 5-fold cross-validation; report its <b>ROC-AUC</b>. AUC 0.5 means
+        indistinguishable, 1.0 means trivially separable. A useful extra: the classifier's coefficients show <em>which embedding dimensions</em>
+        reveal the difference.</li>
+      <li><b>MMD</b> (maximum mean discrepancy): measures the distance between the two clouds as
+        wholes. It compares "how similar are points within each cloud" to "how similar are points
+        across the clouds" — the result is zero exactly when the two distributions match. The
+        kernel width is set automatically (median heuristic).</li>
+    </ol>
+    <div class="formula"><div class="cap">MMD² (unbiased) — kernel <span class="m">k(x,y) = e<sup>−γ‖x−y‖²</sup></span></div>
+      <span class="m"><span class="mr">MMD</span><sup>2</sup> =
+      <span class="frac"><span class="n"><span class="bigop">Σ</span><span class="opsub"><span>i≠j</span></span>k(x<sub>i</sub>,x<sub>j</sub>)</span><span class="d">n(n−1)</span></span>
+      +
+      <span class="frac"><span class="n"><span class="bigop">Σ</span><span class="opsub"><span>i≠j</span></span>k(y<sub>i</sub>,y<sub>j</sub>)</span><span class="d">m(m−1)</span></span>
+      −
+      <span class="frac"><span class="n">2<span class="bigop">Σ</span><span class="opsub"><span>i,j</span></span>k(x<sub>i</sub>,y<sub>j</sub>)</span><span class="d">nm</span></span></span>
+      <div class="note" style="margin-top:8px">The intuition is the three averages, now shown live in
+      the demo: <b>⟨k⟩ within real</b>, <b>⟨k⟩ within synth</b>, and <b>⟨k⟩ across</b>. If the two
+      distributions match, a point's neighbors across the clouds are as similar as its neighbors
+      within — across ≈ within, and the three terms cancel to ≈ 0. Equivalently: the kernel turns
+      each cloud into a smooth "density landscape" (its mean embedding); MMD is the distance
+      between the two landscapes, and it grows exactly when across-similarity falls below
+      within-similarity.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — move the shift slider; a logistic regression retrains live to separate the clouds</span>
+        <div class="presets" id="ts-presets" role="group" aria-label="two-sample presets"></div></div>
+      <div class="controls">
+        <label class="ctl">distribution shift <input type="range" id="ts-shift" min="0" max="1" step="0.02" value="0.45">
+          <span class="val" id="ts-shift-v">0.45</span></label>
+      </div>
+      <div class="svgbox" id="ts-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">C2ST AUC</div><div class="v" id="ts-auc">–</div>
+          <div class="s">0.5 = indistinguishable</div></div>
+        <div class="ro"><div class="k">MMD² × 10³</div><div class="v" id="ts-mmd">–</div>
+          <div class="s">= within + within − 2 × across</div></div>
+        <div class="ro"><div class="k">⟨k⟩ within real</div><div class="v" id="ts-kxx">–</div></div>
+        <div class="ro"><div class="k">⟨k⟩ within synth</div><div class="v" id="ts-kyy">–</div></div>
+        <div class="ro"><div class="k">⟨k⟩ across</div><div class="v" id="ts-kxy">–</div>
+          <div class="s">match ⇒ across ≈ within</div></div>
+      </div>
+      <button class="copybtn" id="ts-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> C2ST 1.000 (A0), 0.916 (A1), 0.716 (A2), 0.489 (ORACLE — real vs real ≈ 0.5, as required). MMD agrees: 0.112 / 0.034 / <b>0.005</b> / 0.000.</div>
+    <div class="refline">Lopez-Paz &amp; Oquab, ICLR 2017 · Gretton et al., JMLR 2012 ·
+    <code>metrics/fidelity.py&nbsp;·&nbsp;c2st_auc,&nbsp;mmd_rbf</code></div>
+  </div>
+
+  
+
+  
+
+  
+
+  <!-- ---- wC2ST ---- -->
+  <div class="card" id="wc2st">
+    <h3>Metric · Within-cluster C2ST — the metric that separates A1 from A2</h3>
+    <p class="sub">The metric that separates A1 from A2. Matching <em>how many</em> queries land in each topic says nothing about how they look <em>inside</em> it — so run the classifier separately inside every topic, where matched totals cannot help.</p>
+    <ol class="steps">
+      <li>Partition real traffic into <span class="m">C</span> clusters once (frozen KMeans partition — every
+        metric uses the same one).</li>
+      <li>Assign each synthetic query to its cluster. For every cluster with ≥ 30 members on both
+        sides, subsample to equal n and run a C2ST inside it.</li>
+      <li>Report the mean AUC over scored clusters. ≈ 0.5 → synthetic queries are shaped like real
+        ones <em>within</em> topics; ≈ 1.0 → they only match in aggregate.</li>
+    </ol>
+    <div class="formula"><div class="cap">why quotas can't fix this — the post-stratification residual</div>
+      <span class="m"><span class="mr">residual bias</span> =
+      <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      p̂<sub>c</sub>&thinsp;<span class="mr">TV</span>(p(·|c),&thinsp;q(·|c))</span>
+      <div class="note" style="margin-top:8px">TV is total-variation distance — the largest
+      difference the two distributions can assign to any event; <span class="m">p(·|c)</span> and
+      <span class="m">q(·|c)</span> are the real and synthetic query distributions <em>inside</em>
+      topic <span class="m">c</span>. After re-weighting clusters perfectly, the bias that remains
+      is exactly this within-cluster mismatch — the term A2's distribution-matched sampling attacks and this
+      metric measures.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — three generation strategies against the same real data</span>
+        <div class="presets" id="wc-presets" role="group" aria-label="sampling-strategy modes"></div></div>
+      <div class="svgbox" id="wc-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">cluster marginals</div><div class="v" id="wc-marg">–</div>
+          <div class="s">demand share vs synth share</div></div>
+        <div class="ro"><div class="k">global C2ST</div><div class="v" id="wc-glob">–</div></div>
+        <div class="ro"><div class="k">within-cluster C2ST</div><div class="v" id="wc-within">–</div>
+          <div class="s" id="wc-per">–</div></div>
+        
+      </div>
+      <button class="copybtn" id="wc-copy">Copy a follow-up question</button>
+    </div>
+    
+    <p class="note" style="margin:10px 0">Why A2 passes this test — and why A1 cannot — is the
+    subject of <a href="#method">Our method ↓</a>, once the efficiency instruments are also on
+    the table.</p>
+    <div class="rs"><b>In ragsynth:</b> the main v1 finding. A1 matches quotas (ESS/N 0.90) yet scores wC2ST <b>1.000</b> — perfectly detectable inside every topic. A2 is the only generative strategy matching within-topic shape: <b>0.680</b>. Exactly the predicted residual.</div>
+    <div class="refline">Lopez-Paz &amp; Oquab, ICLR 2017 (per-cluster) ·
+    <code>metrics/fidelity.py&nbsp;·&nbsp;within_cluster_c2st</code></div>
+  </div>
+</section>
+
+<!-- ================= EFFICIENCY ================= -->
+<section id="efficiency">
+  <h2>Failure modes · 2 — Efficiency &amp; coverage <span class="q">Can this benchmark speak for production demand?</span></h2>
+  <p class="block-lede">Fidelity asked whether generated queries <em>look</em> real; this block
+  asks whether they are the <em>right</em> queries. Group real traffic into topics and measure
+  each topic's demand share; then ask, in order: does every important topic appear <em>at all</em>
+  (coverage — the BCG floors)? And does the mix match demand (weights &amp; ESS)? The six symbols
+  below are the entire language of this block:</p>
+
+  <div class="formula" id="notation" style="margin-top:14px"><div class="cap">notation — six symbols carry the whole page</div>
+    <table class="small" style="margin:4px 0 2px">
+      <tr><th>symbol</th><th>plain meaning</th></tr>
+      <tr><td><span class="m">emb(·)</span></td><td>the <b>embedding</b>: turns a text into a point in
+        space, placed so similar meanings land near each other. Queries and chunks share one
+        space — every picture on this page lives in it.</td></tr>
+      <tr><td><span class="m">c</span></td><td>a <b>topic</b> — one cluster of the frozen partition of real traffic (8 topics in the toy world)</td></tr>
+      <tr><td><span class="m">p̂<sub>c</sub></span></td><td>the <b>demand share</b> of topic <span class="m">c</span>: the fraction of real production
+        queries that land in it (toy world: topic 0 holds 40%). The hat means <em>estimated from a
+        sample of traffic</em>, not known exactly.</td></tr>
+      <tr><td><span class="m">n<sub>c</sub></span>, <span class="m">N</span></td><td>how many <b>synthetic</b> queries land in topic
+        <span class="m">c</span>; the total set size</td></tr>
+      <tr><td><span class="m">q<sub>c</sub> = n<sub>c</sub>/N</span></td><td>the <b>synthetic share</b> of topic <span class="m">c</span> —
+        the benchmark's answer to p̂<sub>c</sub>; fidelity to demand means q ≈ p̂</td></tr>
+      <tr><td><span class="m">w<sub>i</sub> = p̂<sub>c</sub>/q<sub>c</sub></span></td><td>the <b>importance weight</b> of a query in topic
+        <span class="m">c</span>: &gt; 1 inflates under-represented topics, &lt; 1 shrinks
+        over-represented ones</td></tr>
+    </table>
+    <div class="demo" id="nt-demo" style="margin-top:12px;background:var(--surface)">
+      <div class="dhead"><span class="dtitle">Interactive — three insurance topics; count the dots and check every symbol</span>
+        <div class="presets" id="nt-presets" role="group" aria-label="notation presets"></div></div>
+      <div class="svgbox" id="nt-chart"></div>
+      <div id="nt-table"></div>
+    </div>
+  </div>
+
+  <!-- ---- Coverage (BCG) ---- -->
+  <div class="card" id="coverage">
+    <h3>Metric · Coverage — the BCG floor metrics</h3>
+    <p class="sub">The simplest, strictest metric in the stack, from BCG's
+    <i>"Methodological Framework for Quantifying Semantic Test Coverage in RAG Systems"</i>
+    (Broestl et al., arXiv 2510.00001) and the companion rule <i>"Coverage, Not Averages"</i>
+    (arXiv 2604.20763): before averaging anything, check which topics the test set covers at all. A topic with zero queries contributes nothing — no weighting can compensate.</p>
+    <ol class="steps">
+      <li>Embed test questions and corpus chunks into <b>one shared semantic space</b> and cluster
+        it into topics. (BCG first filters outlier questions with a local-outlier-factor score, so
+        irrelevant questions can't fake coverage.)</li>
+      <li>Score how covered each topic is, then combine the topics with weights. Every coverage
+        metric in this family — BCG's three and ragsynth's — is that same two-step skeleton; they
+        differ only in <em>which weight</em> and <em>which covered-ness</em>.</li>
+      <li>BCG weights a topic by its <b>share of content</b> (how many chunks it holds) and scores
+        covered-ness softly (1 − average distance from each chunk to its nearest question).
+        ragsynth weights a topic by its <b>share of demand</b> p̂<sub>c</sub> (how many real users
+        ask about it) and scores covered-ness with a hard floor. Content-mass asks "is the corpus
+        probed?"; demand asks "are the users represented?"</li>
+    </ol>
+    <div class="formula"><div class="cap">one skeleton, three instantiations — all scores in [0, 1], higher is better</div>
+      <span class="m"><span class="mr">Coverage</span> =
+      <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      ω<sub>c</sub> · <span class="mr">cov</span>(c)</span>
+      &nbsp;&nbsp;<span class="note">— topic weight × topic covered-ness, summed over topics</span>
+      <table class="small" style="margin-top:10px">
+        <tr><th>variant</th><th>topic weight ω<sub>c</sub></th><th>covered-ness cov(c)</th></tr>
+        <tr><td>BCG content-weighted</td><td>share of chunks in topic <span class="m">c</span></td>
+          <td>1 − average distance from each chunk to its nearest question (soft, graded)</td></tr>
+        <tr><td>BCG multi-topic</td><td>share of chunks in topic <span class="m">c</span></td>
+          <td>same, but a question only counts for a topic it sits near (within a threshold);
+          a topic no question is near scores 0</td></tr>
+        <tr><td>ragsynth MSC<sub>k</sub></td><td><b>p̂<sub>c</sub></b> — share of real user queries in
+          topic <span class="m">c</span></td>
+          <td><b>1[n<sub>c</sub> ≥ k]</b> — all-or-nothing: 1 if the topic holds at least
+          <span class="m">k</span> synthetic queries, else 0</td></tr>
+      </table>
+      <div class="note" style="margin-top:8px">Read ragsynth's row aloud and it is one sentence:
+      <em>"what fraction of real user demand lands in topics the benchmark has at least k questions
+      for?"</em> At k = 1 this is demand-weighted coverage; the <b>coverage gap</b> is 1 − MSC₁ —
+      the share of traffic the benchmark is silent about; the empty topics are listed by name
+      (<b>zero-query clusters</b>), never averaged away. That is the dual-view rule "Coverage, Not
+      Averages" enforces.</div>
+    </div>
+    <div class="rs"><b>Where BCG's strategy sits on our ladder:</b> the framework's remediation
+    loop — find under-covered clusters, add questions there — is quota sampling in A1's structural
+    sense, but stratified by <em>corpus content</em> instead of <em>user demand</em>: a
+    content-stratified cousin of <a href="#arms">A1</a>. It sits between A0 and A1: no region of
+    the knowledge base stays empty, yet it remains demand-blind (a bulky appendix earns many
+    questions; a hot topic with few chunks earns few), and it shares A1's blind spot — filling a
+    cluster says nothing about the <em>shape inside it</em> (<a href="#wc2st">wC2ST</a>), the gap
+    A2's targets close. One parallel on the other side: BCG's LOF outlier filter is the post-hoc
+    cousin of A2's reality check τ<sub>r</sub> — both keep questions on the manifold of plausible
+    ones, one by filtering after, one by rejecting targets before.</div>
+    <div class="rs"><b>Roadmap — combining the two stratifications (spec v2.06):</b> the two
+    cluster sources answer different questions, so the plan is a hybrid: keep the demand map as
+    the primary stratification and add a small, <b>firewalled exploration slice</b> —
+    π′ = (1−ε)·demand-tilted map + ε·components routed to chunk clusters that fail a content
+    floor (ε ≈ 0.10, targets from a hypothetical query per cold cluster, excluded from the
+    demand headline). What it buys is early warning: a regression under a corpus region users
+    have not queried yet is invisible to <em>every</em> demand-matched strategy by design — the
+    planned <code>drop_cold_cluster</code> control makes that measurable, and only the hybrid
+    detects it. Tested as a fifth strategy (A2X) in the harness; joint pooled query+chunk
+    clustering is explicitly rejected (the modality gap splits clusters by type, not topic).</div>
+    <div class="worked"><b class="t">Worked example — why the average hides what coverage reveals</b>
+      Two topics: <b>billing</b> (60% of demand) and <b>refunds</b> (40%). The generated set has
+      100 billing queries scoring nDCG 0.95, and <b>zero</b> refund queries. The <b>average</b>
+      over the generated queries is 0.95 — it looks excellent. The <b>coverage</b> is 0.60 — the
+      set says nothing about 40% of what users ask. Both numbers are true; only one warns you.
+      That is "coverage, not averages."</div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — click a topic to empty it, raise the floor, and watch coverage fall</span></div>
+      <div class="controls">
+        <label class="ctl">floor k <input type="range" id="cov-floor" min="1" max="40" step="1" value="1">
+          <span class="val" id="cov-floor-v">1</span></label>
+        <span class="ctl" style="color:var(--muted)">counts = strategy A2's real per-topic totals; click bars to toggle ∅</span>
+      </div>
+      <div class="svgbox" id="cov-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">coverage (k=1)</div><div class="v" id="cov2-out">–</div>
+          <div class="s" id="cov2-gap">–</div></div>
+        <div class="ro"><div class="k">MSC at floor k</div><div class="v" id="msc-out">–</div>
+          <div class="s" id="msc-note">–</div></div>
+      </div>
+      <button class="copybtn" id="cov-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> the toy run covered all 8 clusters under every strategy (gap 0).
+    The local-corpus run is the warning example: A1 and A2 left clusters 5 <em>and</em> 6 with zero
+    queries — a 0.14 coverage gap, 14% of production demand unrepresented — while their headline
+    nDCG still looked healthy. That is exactly the failure "coverage, not averages" names. v1
+    reports coverage at floor 1; the floor-k variant ships in the metrics library.
+    Coverage has a sibling on the other side of the page — <a href="#cov-vs-div">how it relates to
+    diversity ↓</a>.</div>
+    <div class="refline">BCG, arXiv 2510.00001 · <i>Coverage, Not Averages</i>, arXiv 2604.20763 ·
+    <code>metrics/efficiency.py&nbsp;·&nbsp;demand_weighted_coverage,&nbsp;minimum_semantic_coverage,&nbsp;zero_query_clusters</code></div>
+  </div>
+
+  <div class="card" id="ess">
+    <h3>Metric · Importance weights, ESS &amp; the post-stratified headline</h3>
+    <p class="sub">Real traffic is uneven — toy topic 0 alone is 40% of demand. If the generated mix differs, each query is re-weighted by its topic's over- or under-representation. Re-weighting costs statistical power; these metrics measure the cost.</p>
+    <ol class="steps">
+      <li><b>Weights.</b> Each synthetic query in cluster <span class="m">c</span> gets
+        <span class="m">w<sub>i</sub> = p̂<sub>c</sub>&#8202;/&#8202;q<sub>c</sub></span> — demand share over synthetic share. Balanced mix → all weights ≈ 1.</li>
+      <li><b>ESS</b> (effective sample size). Unequal weights waste data: 1000 queries with very unequal weights may carry the statistical
+        power of only 550 (that is ESS/N = 0.55 — strategy A0's actual score).</li>
+      <li><b>Coverage.</b> Weights cannot fix a topic with <em>zero</em> queries — see the previous card.</li>
+      <li><b>Post-stratified headline.</b> Report the demand-weighted mean, and always alongside the
+        per-cluster table (the dual-view rule) — a good average can hide one very poor topic.</li>
+    </ol>
+    <div class="formula"><div class="cap">the three identities</div>
+      <span class="m"><span class="mr">ESS</span> =
+      <span class="frac"><span class="n">(<span class="bigop">Σ</span><span class="opsub"><span>i</span></span>w<sub>i</sub>)<sup>2</sup></span><span class="d"><span class="bigop">Σ</span><span class="opsub"><span>i</span></span>w<sub>i</sub><sup>2</sup></span></span></span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="m"><span class="mr">coverage</span> =
+      <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      p̂<sub>c</sub>&thinsp;<span class="mr">1</span>[n<sub>c</sub> ≥ 1]</span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="m">M&#770; =
+      <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      p̂<sub>c</sub>&thinsp;<span class="mr">mean</span>(M&#8202;|&#8202;c)</span>
+      <div class="note" style="margin-top:8px">symbols as in the notation box: p̂<sub>c</sub> =
+      demand share of topic <span class="m">c</span>, <span class="m">n<sub>c</sub></span> = synthetic
+      count, <span class="m">w<sub>i</sub></span> = p̂<sub>c</sub>/q<sub>c</sub>. Variance
+      inflation = <span class="m">n/<span class="mr">ESS</span></span> (Kong 1992): ESS/N = 0.5
+      means your benchmark is effectively half its size.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — the real toy-world demand map; load an actual strategy or drag cluster counts</span>
+        <div class="presets" id="ess-presets" role="group" aria-label="sampling-strategy presets"></div></div>
+      <div class="svgbox" id="ess-chart"></div>
+      <div class="controls" id="ess-sliders" style="gap:8px 16px"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">ESS / N</div><div class="v" id="ess-out">–</div>
+          <div class="s" id="ess-infl">–</div></div>
+        <div class="ro"><div class="k">coverage</div><div class="v" id="cov-out">–</div>
+          <div class="s" id="gap-out">–</div></div>
+        <div class="ro"><div class="k">headline metric</div><div class="v" id="ps-out">–</div>
+          <div class="s" id="ps-naive">–</div></div>
+      </div>
+      <button class="copybtn" id="ess-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> ESS/N 0.55 (A0), 0.90 (A1), 0.91 (A2), 0.99 (ORACLE) — quotas work; A1 already solves this part. The demo's per-topic metric values are illustrative; topic 5 is weak on purpose.</div>
+    <div class="refline">Kong 1992 · Holt &amp; Smith, JRSS&nbsp;A 1979 · BCG arXiv 2510.00001 ·
+    <i>Coverage, Not Averages</i> arXiv 2604.20763 · <code>metrics/efficiency.py</code></div>
+  </div>
+
+  
+  <!-- ---- MAUVE ---- -->
+  <div class="card" id="mauve">
+    <h3>Metric · MAUVE (v2) — both failure directions in one curve</h3>
+    <p class="sub">You now hold both failure directions: <b>inventing</b> mass where real traffic
+    never goes (failure mode 1 — fidelity) and <b>missing</b> mass where real traffic lives (failure mode 2 — this section). MAUVE reads both in one curve — sweeping every trade-off
+    between them and reporting the area: a precision–recall curve for distributions, with MAUVE
+    as its AUC. It is the natural bridge between the two blocks.</p>
+    <ol class="steps">
+      <li>Embed both samples, quantize the shared space into bins (k-means in the real method;
+        topics here), giving two histograms: real <span class="m">P</span>, generated
+        <span class="m">Q</span>.</li>
+      <li>Build a <b>referee distribution</b> between the two:
+        <span class="m">R<sub>λ</sub> = λP + (1−λ)Q</span>, where <b>λ ∈ (0, 1) is the mixing
+        weight</b> — at λ ≈ 1 the referee is almost the real P, at λ ≈ 0 almost the generated Q.
+        Against this referee, compute two soft errors: KL(Q‖R<sub>λ</sub>) — how much of Q is
+        invented — and KL(P‖R<sub>λ</sub>) — how much of P is missed. Comparing both to the
+        mixture, not to each other, keeps the KLs finite even where one histogram has empty bins;
+        each choice of λ weighs one error against the other.</li>
+      <li>Plot the pairs <span class="m">(e<sup>−c·KL(Q‖R)</sup>, e<sup>−c·KL(P‖R)</sup>)</span>
+        as λ sweeps 0→1: the <b>divergence frontier</b>. MAUVE = area under it. Identical
+        distributions → the curve is the point (1,1) → area 1; the further apart, the more the
+        frontier collapses toward the axes.</li>
+    </ol>
+    <div class="formula"><div class="cap">definition — the frontier as an integral</div>
+      <span class="m">R<sub>λ</sub> = λP + (1−λ)Q,&nbsp;&nbsp;
+      x(λ) = e<sup>−c·KL(Q∥R<sub>λ</sub>)</sup>,&nbsp;&nbsp;
+      y(λ) = e<sup>−c·KL(P∥R<sub>λ</sub>)</sup></span>
+      <div style="margin-top:10px"><span class="m"><span class="mr">MAUVE</span>(P,Q) =
+      <span class="bigop">∫</span><sub>0</sub><sup>1</sup>&thinsp;y(x)&thinsp;dx</span></div>
+      <div class="note" style="margin-top:8px">the area under the parametric curve
+      (x(λ), y(λ)) as the mixing weight λ sweeps 0→1; c &gt; 0 is a scaling constant (c = 5 in
+      the paper, smaller here for visibility). MAUVE ∈ (0, 1], and = 1 exactly when P = Q. The
+      demo below computes this integral as a trapezoid sum over 41 values of λ.</div>
+    </div>
+    <div class="formula"><div class="cap">reading the curve</div>
+      <span class="note">Each λ contributes one point; sweeping λ from 0 to 1 traces the whole curve — λ plays the
+      role the score threshold plays in a precision–recall curve. x-axis ≈ precision ("nothing
+      invented"): shrinks when Q holds mass in bins where P has none. y-axis ≈ recall ("nothing
+      missed"): shrinks when Q leaves P's bins empty. A hallucinating generator and a collapsing generator can have the <em>same</em> KL —
+      but they bend this curve toward different axes.</span>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — break Q in two different ways, watch which axis the frontier loses</span>
+        <div class="presets" id="mv-presets" role="group" aria-label="MAUVE presets"></div></div>
+      <div class="controls">
+        <label class="ctl">invented mass <input type="range" id="mv-hall" min="0" max="0.5" step="0.02" value="0">
+          <span class="val" id="mv-hall-v">0.00</span></label>
+        <label class="ctl">mode collapse <input type="range" id="mv-coll" min="0" max="0.85" step="0.05" value="0">
+          <span class="val" id="mv-coll-v">0.00</span></label>
+      </div>
+      <div class="svgbox" id="mv-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">MAUVE (area)</div><div class="v" id="mv-out">–</div>
+          <div class="s">1 = distributions match</div></div>
+      </div>
+      <button class="copybtn" id="mv-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> MAUVE is a v2 addition to the fidelity block, report-only
+    (no gate until reference bands exist). The v2 spec reimplements the quantized frontier with
+    plain scikit-learn (KMeans quantization) to keep the dependency footprint permissive. The
+    demo's scaling constant is illustrative; the curve's shape is what carries the meaning.</div>
+    <div class="refline">Pillutla et al., NeurIPS 2021 · v2 spec 04 ·
+    <code>metrics/fidelity.py (v2)</code></div>
+  </div>
+</section>
+
+
+
+<!-- ================= VALIDITY ================= -->
+<section id="validity">
+  <h2>Failure modes · 3 — Validity <span class="q">Does it rank retrieval systems the way real queries would?</span></h2>
+  <p class="block-lede">The idea: fidelity and coverage are preparation; this is the goal. Score a set
+  of retrieval systems on generated and on held-out real queries — same ranking (τ,
+  τ<sub>AP</sub>, RBO), plus detected injected failures (positive controls), means the test set
+  can make decisions. If this block fails, nothing else matters.</p>
+
+  <div class="card" id="tau">
+    <h3>Metric · Kendall τ, τ<sub>AP</sub>, RBO — system-ranking agreement</h3>
+    <p class="sub">Benchmarks exist to <em>choose between systems</em>. Rank a set of retrieval systems by nDCG — a 0-to-1 score, high when the right chunks rank near the top — on the generated set and on real anchor queries; if the orderings agree, the test set can substitute for real annotation.</p>
+    <ol class="steps">
+      <li><b>Kendall τ</b> counts agreeing vs disagreeing pairs. Every pair of systems either keeps
+        its order across the two rankings (concordant) or flips (discordant).</li>
+      <li><b>τ<sub>AP</sub></b> is τ with top-weighting: mistakes near the top of the ranking —
+        where you actually pick a winner — cost more than mistakes at the bottom.</li>
+      <li><b>RBO</b> compares top-k prefixes with geometrically decaying weight
+        (p = 0.9), robust when rankings only partially overlap.</li>
+      <li>All three get <b>bootstrap confidence intervals</b> by resampling queries. The ORACLE strategy sets the ceiling: even two finite samples of real queries disagree a little.</li>
+    </ol>
+    <div class="formula"><div class="cap">definitions</div>
+      <span class="m">τ =
+      <span class="frac"><span class="n">n<sub><span class="mr">conc</span></sub> − n<sub><span class="mr">disc</span></sub></span><span class="d">n(n−1)/2</span></span></span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="m">τ<sub>AP</sub> =
+      <span class="frac"><span class="n">2</span><span class="d">n−1</span></span>
+      <span class="bigop">Σ</span><span class="opsub"><span>i=2</span></span><sup>n</sup>
+      <span class="frac"><span class="n">C(i)</span><span class="d">i−1</span></span> − 1</span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="m"><span class="mr">RBO</span> = (1−p)
+      <span class="bigop">Σ</span><span class="opsub"><span>d=1</span></span>
+      p<sup>d−1</sup>A<sub>d</sub></span>
+      <div class="note" style="margin-top:8px"><span class="m">C(i)</span> = how many systems ranked
+      above position <span class="m">i</span> are correctly above it; <span class="m">A<sub>d</sub></span> =
+      overlap fraction of the two top-<span class="m">d</span> prefixes. Gates: τ ≥ 0.9 <b>and</b>
+      τ<sub>AP</sub> ≥ 0.8 ⇒ usable for model selection; below ⇒ regression-detection only.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — reorder the synthetic ranking; top swaps hurt τ<sub>AP</sub> more than τ</span>
+        <div class="presets" id="tau-presets" role="group" aria-label="ranking presets"></div></div>
+      <div class="ranklists">
+        <div><h4>anchor ranking (real queries)</h4><ol class="rk" id="rk-anchor"></ol></div>
+        <div><h4>synthetic ranking — use ↑↓</h4><ol class="rk" id="rk-synth"></ol></div>
+      </div>
+      <div class="readouts">
+        <div class="ro"><div class="k">Kendall τ</div><div class="v" id="tau-out">–</div>
+          <div class="s" id="tau-pairs">–</div></div>
+        <div class="ro"><div class="k">τ<sub>AP</sub></div><div class="v" id="tap-out">–</div></div>
+        <div class="ro"><div class="k">RBO (p=.9)</div><div class="v" id="rbo-out">–</div></div>
+        <div class="ro"><div class="k">gates</div><div class="v" id="tau-gate" style="font-size:14px">–</div></div>
+      </div>
+      <button class="copybtn" id="tau-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> v1 toy run — A0 τ 0.716 ✗, A1 0.822 ✗, A2 <b>0.909 ✓</b>
+    (CI [0.85, 1.00]), ORACLE 1.000 with its own CI [0.91, 1.00].</div>
+    <div class="rs"><b>External evidence — <i>Synthetic Test Collections for Retrieval
+    Evaluation</i> (Rahmani, Craswell, Yilmaz, Mitra &amp; Campos, SIGIR 2024).</b> They built a synthetic mirror of TREC Deep Learning 2023 (GPT-4 and T5 queries from MS MARCO v2 passages, GPT-4 judgments, depth-10 pooling) and compared system rankings against the real collection. Synthetic queries with human judgments agreed at τ = 0.815; fully synthetic reached τ = 0.857. That 0.82–0.86 band is the ceiling ragsynth's τ ≥ 0.9 gate is calibrated against — and why the ORACLE ceiling is <em>measured per corpus</em>, not assumed. Their caveats shaped this stack: absolute scores inflate on synthetic collections (so trust <em>rankings</em>, never scores); judge–human agreement was modest (κ ≈ 0.24–0.26; "perfectly relevant" confirmed in 28% of cases — hence v2's calibration tool with a ≥ 90% human floor); and the LLM-bias question is why judge and generator come from different model families.</div>
+    <div class="refline">Kendall 1938 · Yilmaz, Aslam &amp; Robertson, SIGIR 2008 · Webber, Moffat
+    &amp; Zobel, TOIS 2010 · Rahmani et al., SIGIR 2024 ·
+    <code>metrics/validity/agreement.py</code></div>
+  </div>
+
+  <div class="card" id="controls">
+    <h3>Metric · Positive controls — does the benchmark detect injected regressions?</h3>
+    <p class="sub">An <b>injected regression</b> is deliberate, known damage applied to the
+    retrieval system — so you can check the test set notices damage you <em>know</em> is there.
+    A test set that misses an injected failure is worse than none: it creates false confidence.
+    ragsynth's battery injects three, each simulating a real production failure:</p>
+    <table class="small">
+      <tr><th>injected regression</th><th>what it simulates in production</th></tr>
+      <tr><td><code>drop_index(10%)</code> — silently remove 10% of chunks from the index</td>
+        <td>documents failing to sync; partial index corruption after a re-ingest</td></tr>
+      <tr><td><code>noise(σ)</code> — perturb every embedding with random noise</td>
+        <td>a degraded, quantized, or silently swapped embedding model</td></tr>
+      <tr><td><code>truncate_topk</code> — cut retrieval depth</td>
+        <td>an over-aggressive result limit or a timeout returning partial results</td></tr>
+    </table>
+    <ol class="steps">
+      <li>Score every query before and after the injected degradation (paired design).</li>
+      <li>Bootstrap the per-query deltas: resample queries with replacement, recompute the mean
+        delta each time.</li>
+      <li>One-sided p-value = fraction of resamples where the degraded system looks no worse.
+        p &lt; 0.05 ⇒ detected; p ≈ 1.0 ⇒ the benchmark is blind to this failure mode.</li>
+    </ol>
+    <div class="formula"><div class="cap">paired bootstrap</div>
+      <span class="m">p =
+      <span class="frac"><span class="n">#{&#8202;<span class="mr">resamples</span> :
+      <span class="mr">mean</span>(Δ<sup>*</sup>) ≤ 0&#8202;}</span><span class="d">B</span></span></span>
+      <div class="note" style="margin-top:8px">where <span class="m">Δ<sub>i</sub></span> = score
+      drop of query <span class="m">i</span> under the injected degradation, B = 1000 resamples
+      (Sakai's discriminative-power tradition).</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — inject a failure and adjust how sensitive the test set is</span>
+        <div class="presets" id="pc-presets" role="group" aria-label="control presets"></div></div>
+      <div class="controls">
+        <label class="ctl">true degradation <input type="range" id="pc-effect" min="0" max="0.12" step="0.005" value="0.05">
+          <span class="val" id="pc-effect-v">0.050</span></label>
+        <label class="ctl">benchmark sensitivity <input type="range" id="pc-sens" min="0" max="1" step="0.05" value="0.8">
+          <span class="val" id="pc-sens-v">0.80</span></label>
+      </div>
+      <div class="svgbox" id="pc-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">bootstrap p</div><div class="v" id="pc-out">–</div></div>
+        <div class="ro"><div class="k">verdict</div><div class="v" id="pc-verdict" style="font-size:14px">–</div></div>
+      </div>
+      <button class="copybtn" id="pc-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> every strategy caught the 10% index deletion, but on embedding noise A1 scored p = <b>1.00</b> (blind; A0: 0.14) while A2 and ORACLE detected it at p &lt; 0.001. A demand-matched test set can still miss real failures. Set sensitivity near 0 to reproduce A1's blindness.</div>
+    <div class="refline">Sakai, SIGIR 2006 · <code>metrics/validity/controls.py</code></div>
+  </div>
+</section>
+
+<!-- ================= DIVERSITY ================= -->
+<section id="diversitySec">
+  <h2>Failure modes · 4 — Diversity <span class="q">Is the set actually many different questions?</span></h2>
+  <p class="block-lede">The idea: a safety check. Nothing above notices one good question duplicated many times; simple repetition checks do.</p>
+  <div class="card" id="diversity">
+    <h3>Metric · Distinct-n, dedup rate — and Vendi (v2)</h3>
+    <p class="sub">Every metric above can be passed by generating one good query many times. Diversity metrics detect that collapse.</p>
+    <ol class="steps">
+      <li><b>Distinct-1 / distinct-2:</b> unique unigrams (bigrams) ÷ total. Low values ⇒ the
+        generator is recycling phrasing.</li>
+      <li><b>Semantic dedup rate:</b> fraction of candidates removed for cosine ≥ 0.98 to an
+        already-kept query — measured at the gate, where it doubles as a reject reason.</li>
+      <li><b>Vendi score (v2):</b> the "effective number of distinct samples" — build the pairwise
+        similarity matrix, take its eigenvalue entropy. n identical queries → 1; n orthogonal
+        queries → n. One number, interpretable as a count.</li>
+    </ol>
+    <div class="formula"><div class="cap">Vendi score</div>
+      <span class="m"><span class="mr">Vendi</span>(K) = <span class="mr">exp</span>&#8202;(−<span class="bigop">Σ</span><span class="opsub"><span>i</span></span>
+      λ<sub>i</sub>&thinsp;<span class="mr">ln</span>&thinsp;λ<sub>i</sub>)</span>
+      <div class="note" style="margin-top:8px">λ = eigenvalues of the normalized similarity matrix
+      <span class="m">K/n</span>. Since every diagonal entry of K is 1, they sum to exactly 1 — a
+      probability distribution over the set's <b>latent modes</b> (its themes), where
+      λ<sub>i</sub> is the share of the set that mode <span class="m">i</span> explains.
+      Extremes: 12 duplicates → K is all ones → one eigenvalue = 1, the rest 0 → Vendi = e⁰ = 1.
+      Twelve mutually dissimilar queries → K ≈ identity → twelve eigenvalues of 1/12 →
+      Vendi = e<sup>ln 12</sup> = 12. Two tight themes of six → two eigenvalues near ½ →
+      Vendi ≈ 2, which a plain average of pairwise similarities could never tell you.
+      exp(entropy) is <b>perplexity</b>: the number of equally-weighted modes that would carry
+      the same entropy.</div>
+    </div>
+    <div class="demo">
+      <div class="dhead"><span class="dtitle">Demo — arrange 12 queries; the eigenvalue spectrum IS the diversity</span>
+        <div class="presets" id="vd-presets" role="group" aria-label="Vendi presets"></div></div>
+      <div class="controls">
+        <label class="ctl">semantic spread <input type="range" id="vd-spread" min="0.02" max="1" step="0.02" value="0.7">
+          <span class="val" id="vd-spread-v">0.70</span></label>
+      </div>
+      <div class="svgbox" id="vd-chart"></div>
+      <div class="readouts">
+        <div class="ro"><div class="k">Vendi score</div><div class="v" id="vd-out">–</div>
+          <div class="s" id="vd-h">–</div></div>
+      </div>
+      <button class="copybtn" id="vd-copy">Copy a follow-up question</button>
+    </div>
+    <div class="rs"><b>In ragsynth:</b> v1 ships distinct-n and the dedup tally (the toy A1 run
+    rejected 227 near-duplicates); Vendi and MAUVE join in v2 as report-only numbers — no gates
+    until reference bands exist for them.</div>
+    <div class="refline">Friedman &amp; Dieng, TMLR 2023 · Pillutla et al., NeurIPS 2021 (MAUVE, v2) ·
+    <code>metrics/diversity.py</code></div>
+  </div>
+
+  <!-- ---- coverage vs diversity ---- -->
+  <div class="card" id="cov-vs-div">
+    <h3>Coverage ↔ diversity — same family, orthogonal axes</h3>
+    <p class="sub">Related, and measurably so: coverage, ESS and Vendi are all
+    <em>effective counts</em> — the same mathematical family (Hill numbers,
+    <span class="m"><sup>q</sup>D = (Σ<sub>i</sub>&#8202;p<sub>i</sub><sup>q</sup>)<sup>1/(1−q)</sup></span>)
+    at different orders, applied to different distributions. What separates them is <b>what</b>
+    they count and <b>relative to what</b>.</p>
+    <table class="small">
+      <tr><th>metric</th><th>counts what</th><th>relative to</th><th>Hill order</th></tr>
+      <tr><td>coverage / MSC<sub>k</sub></td><td>demand clusters with support ≥ k</td>
+        <td>production demand p̂</td><td>q = 0 — richness: support only, proportions ignored</td></tr>
+      <tr><td>ESS</td><td>effectively independent samples after re-weighting</td>
+        <td>the importance-weight distribution</td><td>q = 2 — inverse Simpson: 1/Σ&#8202;w̃<sub>i</sub><sup>2</sup></td></tr>
+      <tr><td>Vendi</td><td>effectively distinct queries</td>
+        <td>the set's own similarity spectrum</td><td>q = 1 — exp-Shannon of kernel eigenvalues</td></tr>
+    </table>
+    <p class="sub" style="margin-top:10px">And why one can never substitute for the other — each is
+    blind to the other's failure, by construction:</p>
+    <ol class="steps">
+      <li><b>Full coverage, zero diversity.</b> One good query per topic, duplicated 50 times: coverage = 1.0, floors pass, ESS ideal — but only 8 questions exist. Only diversity objects (Vendi ≈ 8, dedup fires).</li>
+      <li><b>High diversity, broken coverage.</b> 400 different questions all in one topic: Vendi high, dedup clean — but coverage 0.40, gap 60% of demand. Only coverage objects.</li>
+      <li>Coverage is <b>between-topic and demand-relative</b>; diversity is <b>within-set and demand-blind</b>. ESS sits between, checking <b>proportions</b> once support and distinctness hold.</li>
+    </ol>
+    <div class="rs"><b>In ragsynth:</b> that is why the report keeps all three families — the
+    dual-view rule ("Coverage, Not Averages") governs what gets reported, the floors govern what
+    counts as covered, and the diversity guard keeps both honest against repetition. The BCG
+    framework's outlier-filtering step plays the mirror role on the other side: it removes
+    questions that inflate diversity without covering anything.</div>
+    <div class="refline">Hill 1973 (effective-number unification) · Friedman &amp; Dieng, TMLR 2023
+    (Vendi as exp-entropy) · Kong 1992 (ESS) · Broestl et al., arXiv 2510.00001 (semantic test
+    coverage)</div>
+  </div>
+</section>
+
+<!-- ================= FM SUMMARY ================= -->
+<section id="fm-summary">
+  <h2>Failure modes · Summary <span class="q">All four on one slide — the scoreboard our method must beat</span></h2>
+  <div class="card">
+    <h3>Four failures, four metric families, one radar</h3>
+    <div class="svgbox">
+    <svg viewBox="0 0 660 120" role="img" aria-label="Miniatures of the four failure modes">
+      <g transform="translate(10,6)"><rect width="140" height="70" fill="var(--page)" rx="6"/>
+        <circle cx="45" cy="35" r="17" fill="var(--real-soft)"/><circle cx="95" cy="31" r="17" fill="var(--synth-soft)"/>
+        <circle cx="41" cy="32" r="2.4" fill="var(--real)"/><circle cx="50" cy="40" r="2.4" fill="var(--real)"/>
+        <circle cx="91" cy="27" r="2.4" fill="var(--synth)"/><circle cx="99" cy="36" r="2.4" fill="var(--synth)"/>
+        <line x1="70" y1="8" x2="70" y2="62" stroke="var(--accent)" stroke-dasharray="4 3"/>
+        <text x="70" y="88" font-size="10.5" fill="var(--ink)" text-anchor="middle" font-weight="650">1 · Fidelity</text>
+        <text x="70" y="101" font-size="9" fill="var(--muted)" text-anchor="middle">doesn't sound like your users</text></g>
+      <g transform="translate(175,6)"><rect width="140" height="70" fill="var(--page)" rx="6"/>
+        <rect x="18" y="18" width="9" height="36" fill="var(--real)"/><rect x="29" y="40" width="9" height="14" fill="var(--synth)"/>
+        <rect x="55" y="28" width="9" height="26" fill="var(--real)"/><rect x="66" y="22" width="9" height="32" fill="var(--synth)"/>
+        <rect x="92" y="38" width="9" height="16" fill="var(--real)"/>
+        <text x="112" y="52" font-size="12" fill="var(--bad)">∅</text>
+        <line x1="12" y1="54" x2="128" y2="54" stroke="var(--axis)"/>
+        <text x="70" y="88" font-size="10.5" fill="var(--ink)" text-anchor="middle" font-weight="650">2 · Efficiency &amp; coverage</text>
+        <text x="70" y="101" font-size="9" fill="var(--muted)" text-anchor="middle">asks about the wrong things</text></g>
+      <g transform="translate(340,6)"><rect width="140" height="70" fill="var(--page)" rx="6"/>
+        <rect x="16" y="14" width="40" height="9" rx="2" fill="var(--real-soft)"/><rect x="16" y="30" width="40" height="9" rx="2" fill="var(--real-soft)"/><rect x="16" y="46" width="40" height="9" rx="2" fill="var(--real-soft)"/>
+        <rect x="84" y="14" width="40" height="9" rx="2" fill="var(--synth-soft)"/><rect x="84" y="30" width="40" height="9" rx="2" fill="var(--synth-soft)"/><rect x="84" y="46" width="40" height="9" rx="2" fill="var(--synth-soft)"/>
+        <line x1="57" y1="18" x2="83" y2="34" stroke="var(--bad)" stroke-width="1.5"/>
+        <line x1="57" y1="34" x2="83" y2="18" stroke="var(--bad)" stroke-width="1.5"/>
+        <line x1="57" y1="50" x2="83" y2="50" stroke="var(--good)" stroke-width="1.5"/>
+        <text x="70" y="88" font-size="10.5" fill="var(--ink)" text-anchor="middle" font-weight="650">3 · Validity</text>
+        <text x="70" y="101" font-size="9" fill="var(--muted)" text-anchor="middle">reaches different conclusions</text></g>
+      <g transform="translate(505,6)"><rect width="140" height="70" fill="var(--page)" rx="6"/>
+        <circle cx="42" cy="34" r="3" fill="var(--synth)"/><circle cx="46" cy="31" r="3" fill="var(--synth)" fill-opacity=".6"/>
+        <circle cx="39" cy="37" r="3" fill="var(--synth)" fill-opacity=".6"/><circle cx="44" cy="38" r="3" fill="var(--synth)" fill-opacity=".4"/>
+        <text x="66" y="38" font-size="9" fill="var(--muted)">vs</text>
+        <circle cx="88" cy="22" r="3" fill="var(--synth)"/><circle cx="108" cy="34" r="3" fill="var(--synth)"/>
+        <circle cx="92" cy="48" r="3" fill="var(--synth)"/><circle cx="118" cy="18" r="3" fill="var(--synth)"/>
+        <text x="70" y="88" font-size="10.5" fill="var(--ink)" text-anchor="middle" font-weight="650">4 · Diversity</text>
+        <text x="70" y="101" font-size="9" fill="var(--muted)" text-anchor="middle">repeats the same question</text></g>
+    </svg></div>
+    <div class="svgbox" style="margin-top:8px">
+    <svg viewBox="0 0 560 235" role="img" aria-label="Radar of the four sampling strategies against the four failure modes">
+      <path d="M110,87.5 L132.5,110 L110,132.5 L87.5,110 Z" fill="none" stroke="var(--grid)"/><path d="M110,65.0 L155.0,110 L110,155.0 L65.0,110 Z" fill="none" stroke="var(--grid)"/><path d="M110,42.5 L177.5,110 L110,177.5 L42.5,110 Z" fill="none" stroke="var(--grid)"/><path d="M110,20.0 L200.0,110 L110,200.0 L20.0,110 Z" fill="none" stroke="var(--grid)"/>
+      <line x1="110" y1="20" x2="110" y2="200" stroke="var(--grid)"/>
+      <line x1="20" y1="110" x2="200" y2="110" stroke="var(--grid)"/>
+      <polygon points="110.0,101.0 159.5,110.0 110.0,174.8 30.8,110.0" fill="#9aa0ab" fill-opacity=".10" stroke="#9aa0ab" stroke-width="1.8"/>
+      <polygon points="110.0,87.5 191.0,110.0 110.0,183.8 33.5,110.0" fill="var(--synth)" fill-opacity=".10" stroke="var(--synth)" stroke-width="1.8"/>
+      <polygon points="110.0,42.5 191.9,110.0 110.0,191.9 29.0,110.0" fill="var(--accent)" fill-opacity=".14" stroke="var(--accent)" stroke-width="2.2"/>
+      <polygon points="110.0,22.7 199.1,110.0 110.0,200.0 24.5,110.0" fill="none" stroke="var(--real)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <polygon points="110.0,42.5 197.3,110.0 110.0,195.5 27.2,110.0" fill="none" stroke="var(--ph-how)" stroke-width="1.8" stroke-dasharray="2 4"/>
+      <text x="110" y="12" font-size="10.5" fill="var(--ink-2)" text-anchor="middle" font-weight="650">1 · Fidelity</text>
+      <text x="207" y="106" font-size="10.5" fill="var(--ink-2)" font-weight="650">2 · Efficiency</text>
+      <text x="207" y="118" font-size="9.5" fill="var(--muted)">&amp; coverage</text>
+      <text x="110" y="215" font-size="10.5" fill="var(--ink-2)" text-anchor="middle" font-weight="650">3 · Validity</text>
+      <text x="6" y="96" font-size="10.5" fill="var(--ink-2)" text-anchor="start" font-weight="650">4 · Diversity</text>
+      <g font-size="11.5">
+        <rect x="330" y="52" width="14" height="3.5" fill="#9aa0ab"/><text x="352" y="57" fill="var(--ink-2)">A0 — random</text>
+        <rect x="330" y="76" width="14" height="3.5" fill="var(--synth)"/><text x="352" y="81" fill="var(--ink-2)">A1 — stratified cluster</text>
+        <rect x="330" y="100" width="14" height="4.5" fill="var(--accent)"/><text x="352" y="106" fill="var(--ink-2)" font-weight="650">A2 — distribution-matched</text>
+        <line x1="330" y1="124" x2="344" y2="124" stroke="var(--ph-how)" stroke-dasharray="2 4" stroke-width="1.8"/><text x="352" y="128" fill="var(--ink-2)">A2X — + exploration <tspan fill="var(--muted)">(planned)</tspan></text>
+        <line x1="330" y1="148" x2="344" y2="148" stroke="var(--real)" stroke-dasharray="5 4" stroke-width="1.6"/><text x="352" y="152" fill="var(--ink-2)">ORACLE — real queries</text>
+        <text x="330" y="178" font-size="9.5" fill="var(--muted)">v1 toy results, normalized per axis</text>
+        <text x="330" y="190" font-size="9.5" fill="var(--muted)">(A2X projected · diversity axis illustrative)</text>
+      </g>
+    </svg></div>
+    <table class="small">
+      <tr><th>failure mode</th><th>the question</th><th>metrics that catch it</th></tr>
+      <tr><td>1 · It doesn't sound like your users</td><td>could a detector spot the fakes?</td>
+        <td><a href="#kl">KL profile</a> · <a href="#c2st">C2ST</a> · <a href="#c2st">MMD</a> · <a href="#wc2st">within-cluster C2ST</a></td></tr>
+      <tr><td>2 · It asks about the wrong things</td><td>right topics, right proportions?</td>
+        <td><a href="#coverage">coverage &amp; floors</a> · <a href="#ess">weights &amp; ESS</a> · <a href="#ess">post-stratified headline</a> · <a href="#mauve">MAUVE</a></td></tr>
+      <tr><td>3 · It reaches different conclusions</td><td>same decisions as real queries?</td>
+        <td><a href="#tau">τ, τ<sub>AP</sub>, RBO</a> · <a href="#tau">bootstrap CIs</a> · <a href="#controls">positive controls</a></td></tr>
+      <tr><td>4 · It repeats the same question</td><td>actually many questions?</td>
+        <td><a href="#diversity">distinct-n</a> · <a href="#diversity">dedup rate</a> · <a href="#diversity">Vendi</a></td></tr>
+    </table>
+    <div class="rs"><b>Reading the radar:</b> A0 collapses on fidelity; A1 fixes efficiency and
+    nothing else; A2 tracks the ORACLE on every axis. That dominance is the claim — the next
+    section explains the method behind it. The dotted magenta outline is <b>A2X</b> (spec v2.06,
+    planned): same headline as A2, plus content coverage where demand is silent — its
+    <code>drop_cold_cluster</code> control is the one test every demand-matched strategy fails by
+    design.</div>
+  </div>
+</section>
+
+<!-- ================= OUR METHOD ================= -->
+<section id="method">
+  <h2>V · Our method <span class="q">A2 — distribution-matched sampling</span></h2>
+  <p class="block-lede">Paper order: related work first, proposition second. The instruments above
+  can now judge any generator — the fidelity metrics detect shape mismatch, the efficiency
+  metrics price it. Here is the method built to pass both at once.</p>
+
+  <div class="card">
+    <h3>The idea, before the math</h3>
+    <div class="svgbox">
+    <svg viewBox="0 0 660 240" role="img" aria-label="Three panels: random polling, hard quotas, and sampling from a soft census map">
+      <defs>
+        <radialGradient id="bumpL"><stop offset="0%" stop-color="var(--real)" stop-opacity="0.28"/><stop offset="100%" stop-color="var(--real)" stop-opacity="0"/></radialGradient>
+        <radialGradient id="bumpR"><stop offset="0%" stop-color="var(--real)" stop-opacity="0.24"/><stop offset="100%" stop-color="var(--real)" stop-opacity="0"/></radialGradient>
+        <g id="pop">
+          <circle cx="45" cy="60" r="3" fill="var(--real)"/><circle cx="60" cy="50" r="3" fill="var(--real)"/>
+          <circle cx="72" cy="66" r="3" fill="var(--real)"/><circle cx="52" cy="78" r="3" fill="var(--real)"/>
+          <circle cx="66" cy="82" r="3" fill="var(--real)"/><circle cx="80" cy="55" r="3" fill="var(--real)"/>
+          <circle cx="58" cy="64" r="3" fill="var(--real)"/><circle cx="74" cy="76" r="3" fill="var(--real)"/>
+          <circle cx="88" cy="68" r="3" fill="var(--real)"/>
+          <circle cx="135" cy="85" r="3" fill="var(--real)"/><circle cx="150" cy="75" r="3" fill="var(--real)"/>
+          <circle cx="162" cy="92" r="3" fill="var(--real)"/><circle cx="144" cy="100" r="3" fill="var(--real)"/>
+          <circle cx="158" cy="105" r="3" fill="var(--real)"/>
+        </g>
+      </defs>
+      <!-- panel A: A0 street poll -->
+      <g transform="translate(8,6)">
+        <rect width="200" height="160" fill="var(--page)" rx="8"/>
+        <use href="#pop"/>
+        <circle cx="30" cy="35" r="3.6" fill="var(--synth)"/><circle cx="100" cy="125" r="3.6" fill="var(--synth)"/>
+        <circle cx="172" cy="40" r="3.6" fill="var(--synth)"/><circle cx="55" cy="115" r="3.6" fill="var(--synth)"/>
+        <circle cx="140" cy="55" r="3.6" fill="var(--synth)"/><circle cx="188" cy="118" r="3.6" fill="var(--synth)"/>
+        <circle cx="85" cy="28" r="3.6" fill="var(--synth)"/>
+        <text x="100" y="185" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="650">A0 — street poll</text>
+        <text x="100" y="200" font-size="10" fill="var(--muted)" text-anchor="middle">samples land anywhere —</text>
+        <text x="100" y="212" font-size="10" fill="var(--muted)" text-anchor="middle">even where nobody lives</text>
+      </g>
+      <!-- panel B: A1 quotas -->
+      <g transform="translate(230,6)">
+        <rect width="200" height="160" fill="var(--page)" rx="8"/>
+        <line x1="110" y1="8" x2="110" y2="152" stroke="var(--axis)" stroke-dasharray="5 4"/>
+        <use href="#pop"/>
+        <text x="58" y="22" font-size="9.5" fill="var(--muted)" text-anchor="middle">district A · quota 6</text>
+        <text x="156" y="22" font-size="9.5" fill="var(--muted)" text-anchor="middle">district B · quota 4</text>
+        <circle cx="62" cy="56" r="3.6" fill="var(--synth)"/><circle cx="70" cy="56" r="3.6" fill="var(--synth)"/>
+        <circle cx="62" cy="64" r="3.6" fill="var(--synth)"/><circle cx="70" cy="64" r="3.6" fill="var(--synth)"/>
+        <circle cx="62" cy="72" r="3.6" fill="var(--synth)"/><circle cx="70" cy="72" r="3.6" fill="var(--synth)"/>
+        <circle cx="146" cy="84" r="3.6" fill="var(--synth)"/><circle cx="154" cy="84" r="3.6" fill="var(--synth)"/>
+        <circle cx="146" cy="92" r="3.6" fill="var(--synth)"/><circle cx="154" cy="92" r="3.6" fill="var(--synth)"/>
+        <text x="100" y="185" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="650">A1 — quotas</text>
+        <text x="100" y="200" font-size="10" fill="var(--muted)" text-anchor="middle">right totals per district —</text>
+        <text x="100" y="212" font-size="10" fill="var(--muted)" text-anchor="middle">but the same few spots inside</text>
+      </g>
+      <!-- panel C: A2 census map -->
+      <g transform="translate(452,6)">
+        <rect width="200" height="160" fill="var(--page)" rx="8"/>
+        <ellipse cx="68" cy="66" rx="52" ry="38" fill="url(#bumpL)"/>
+        <ellipse cx="142" cy="90" rx="46" ry="34" fill="url(#bumpR)"/>
+        <use href="#pop"/>
+        <circle cx="55" cy="60" r="3.6" fill="var(--synth)"/><circle cx="76" cy="80" r="3.6" fill="var(--synth)"/>
+        <circle cx="90" cy="68" r="3.6" fill="var(--synth)"/><circle cx="106" cy="78" r="3.6" fill="var(--synth)"/>
+        <circle cx="136" cy="86" r="3.6" fill="var(--synth)"/><circle cx="152" cy="97" r="3.6" fill="var(--synth)"/>
+        <circle cx="163" cy="82" r="3.6" fill="var(--synth)"/><circle cx="68" cy="50" r="3.6" fill="var(--synth)"/>
+        <text x="106" y="70" font-size="8.5" fill="var(--accent)" text-anchor="middle">↖ between districts</text>
+        <text x="182" y="32" font-size="13" fill="var(--muted)" text-anchor="middle">✕</text>
+        <text x="182" y="44" font-size="8.5" fill="var(--muted)" text-anchor="middle">rejected</text>
+        <text x="100" y="185" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="650">A2 — census map</text>
+        <text x="100" y="200" font-size="10" fill="var(--muted)" text-anchor="middle">drawn from the soft blend —</text>
+        <text x="100" y="212" font-size="10" fill="var(--muted)" text-anchor="middle">the spread follows the people</text>
+      </g>
+      <circle cx="238" cy="232" r="3" fill="var(--real)"/>
+      <text x="247" y="236" font-size="10" fill="var(--ink-2)">real questions</text>
+      <circle cx="336" cy="232" r="3.6" fill="var(--synth)"/>
+      <text x="345" y="236" font-size="10" fill="var(--ink-2)">sampled questions</text>
+    </svg></div>
+    <div class="formula" style="margin-top:12px"><div class="cap">how A2 corrects sampling bias — the polling analogy</div>
+      <ul style="margin:6px 0 8px;padding-left:20px;font-size:14px;max-width:64ch">
+        <li style="margin-bottom:7px"><b>A0 — street poll.</b> Ask whoever walks by. Cheap, and biased.</li>
+        <li style="margin-bottom:7px"><b>A1 — quotas.</b> Decide in advance: 50 answers from district A,
+          30 from district B. Right <em>totals</em> per district — but still whoever happened to
+          be outside.</li>
+        <li style="margin-bottom:7px"><b>A2 — clone the census.</b> First learn where real questions
+          live (a map of real queries, weighted by demand). For each new query, pick a target spot
+          on that map — throw it back if it lands where real traffic never goes — then write a
+          query that lands there. One important subtlety: the map is <em>soft</em>. It is not hard
+          districts with borders but a blend of overlapping bumps — a <em>mixture model</em>. A
+          question sitting between two districts belongs a little to both, and targets are drawn
+          from the whole blend — so the in-between questions real users actually ask get generated
+          too, not only the district centers.</li>
+      </ul>
+      <span class="note">The point: A2 fixes the bias <em>before</em> generating. The weights
+      w = p̂/q come out ≈ 1, so there is nothing left to correct — while correcting afterwards by
+      re-weighting costs about e<sup>KL</sup> extra samples. What A2 cannot fix — errors in its
+      own map — is exactly what wC2ST measures.</span>
+    </div>
+  </div>
+
+  <div class="card" id="a2-algo">
+    <h3>Inside A2 — the sampling algorithm, step by step</h3>
+    <p class="sub">The precise version of "clone the census": how one synthetic query gets its
+    target before a single word is written.</p>
+    <div class="svgbox">
+    <svg viewBox="0 0 640 250" role="img" aria-label="Diagram of A2 sampling: demand map, target draw, rejection, evidence retrieval, landing">
+      <rect width="640" height="250" fill="var(--page)" rx="8"/>
+      <ellipse cx="150" cy="100" rx="88" ry="56" fill="none" stroke="var(--axis)" stroke-dasharray="5 4"/>
+      <ellipse cx="392" cy="140" rx="96" ry="60" fill="none" stroke="var(--axis)" stroke-dasharray="5 4"/>
+      <circle cx="118" cy="82" r="3.4" fill="var(--real)"/><circle cx="145" cy="70" r="3.4" fill="var(--real)"/>
+      <circle cx="170" cy="90" r="3.4" fill="var(--real)"/><circle cx="132" cy="108" r="3.4" fill="var(--real)"/>
+      <circle cx="160" cy="118" r="3.4" fill="var(--real)"/><circle cx="188" cy="108" r="3.4" fill="var(--real)"/>
+      <circle cx="105" cy="112" r="3.4" fill="var(--real)"/><circle cx="178" cy="76" r="3.4" fill="var(--real)"/>
+      <circle cx="352" cy="120" r="3.4" fill="var(--real)"/><circle cx="380" cy="108" r="3.4" fill="var(--real)"/>
+      <circle cx="412" cy="118" r="3.4" fill="var(--real)"/><circle cx="368" cy="150" r="3.4" fill="var(--real)"/>
+      <circle cx="398" cy="162" r="3.4" fill="var(--real)"/><circle cx="428" cy="150" r="3.4" fill="var(--real)"/>
+      <circle cx="440" cy="128" r="3.4" fill="var(--real)"/><circle cx="345" cy="142" r="3.4" fill="var(--real)"/>
+      <text x="150" y="34" font-size="10.5" fill="var(--muted)" text-anchor="middle">topic bump μ₀, κ₀ (movMF)</text>
+      <text x="392" y="66" font-size="10.5" fill="var(--muted)" text-anchor="middle">topic bump μ₁, κ₁</text>
+      <path d="M392,132 l5,10 11,2 -8,8 2,11 -10,-5 -10,5 2,-11 -8,-8 11,-2 z" fill="var(--accent)"/>
+      <text x="392" y="192" font-size="10.5" fill="var(--accent)" text-anchor="middle" font-weight="650">z — sampled target (step 3)</text>
+      <text x="560" y="52" font-size="15" fill="var(--muted)" text-anchor="middle">✕</text>
+      <text x="560" y="70" font-size="10" fill="var(--muted)" text-anchor="middle">rejected: too far from</text>
+      <text x="560" y="82" font-size="10" fill="var(--muted)" text-anchor="middle">real traffic (step 4)</text>
+      <rect x="360" y="98" width="6" height="6" rx="1" fill="var(--muted)"/>
+      <rect x="416" y="98" width="6" height="6" rx="1" fill="var(--muted)"/>
+      <rect x="404" y="164" width="6" height="6" rx="1" fill="var(--muted)"/>
+      <text x="636" y="98" font-size="10" fill="var(--muted)" text-anchor="end">■ nearest chunks = evidence (step 5)</text>
+      <circle cx="399" cy="139" r="4.5" fill="var(--synth)"/>
+      <path d="M470,210 Q430,185 405,148" fill="none" stroke="var(--synth)" stroke-width="1.6" marker-end="none" stroke-dasharray="4 3"/>
+      <text x="636" y="222" font-size="10.5" fill="var(--synth)" text-anchor="end">generated query lands on z (step 6)</text>
+      <circle cx="30" cy="228" r="3.4" fill="var(--real)"/>
+      <text x="40" y="232" font-size="10.5" fill="var(--ink-2)">real queries (embedded)</text>
+      <text x="196" y="232" font-size="10.5" fill="var(--ink-2)">◌ dashed = fitted topic bumps</text>
+    </svg></div>
+
+    <div class="formula"><div class="cap">what is movMF — and why this distribution</div>
+      <span class="m">f(z; μ, κ) = C<sub>d</sub>(κ)&thinsp;e<sup>κ&thinsp;μ·z</sup></span>
+      &nbsp;&nbsp;·&nbsp;&nbsp;
+      <span class="m">p(z) = <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      π′<sub>c</sub>&thinsp;f(z; μ<sub>c</sub>, κ<sub>c</sub>)</span>
+      <div class="note" style="margin-top:8px">
+      Embeddings are normalized, so queries live on the surface of a sphere — only their
+      <em>direction</em> matters (cosine similarity is the dot product). A Gaussian is the wrong
+      shape there: it puts probability off the sphere. The <b>von Mises–Fisher (vMF)</b>
+      distribution is the sphere's Gaussian: a single bump centered on a direction
+      <span class="m">μ</span> (the topic's center), whose concentration <span class="m">κ</span>
+      plays the role of 1/σ² — large κ = a tight, specialized topic; small κ = a broad one. The
+      dashed ellipses in the diagram are two such bumps. A <b>m</b>ixture <b>o</b>f
+      <b>vMF</b> (movMF) is several bumps with weights π — the same idea as a Gaussian mixture,
+      moved onto the sphere, fitted by EM (Banerjee et al., 2005; KMeans on cosine distance is
+      its hard-assignment limit).
+      Three reasons A2 uses it rather than plain clusters:
+      (1) it is <b>generative</b> — unlike a KMeans partition, you can <em>draw new targets</em>
+      z from it, which is the whole point of step 3;
+      (2) every parameter is <b>interpretable and steerable</b> — π′ carries the demand tilt,
+      μ<sub>c</sub> the topic centers, κ<sub>c</sub> the within-topic spread, which is precisely
+      the "shape inside a topic" that quotas cannot match;
+      (3) it is a <b>small, frozen artifact</b> — a few vectors and scalars, versioned per
+      benchmark epoch, so the same demand map can be audited and reused.</div>
+    </div>
+    <ol class="steps">
+      <li><b>Map the demand.</b> Embed all real queries and fit a mixture of "bumps" on the
+        sphere (movMF): each bump has a center μ<sub>c</sub> (a topic) and a spread
+        κ<sub>c</sub>. Weight each bump by its topic's demand share, softened by a mixing
+        factor λ.</li>
+      <li><b>Pick a topic.</b> Draw a component <span class="m">c ~ Cat(π′)</span> — frequent
+        topics are drawn more often, in proportion to tilted demand.</li>
+      <li><b>Pick a target.</b> Draw a direction <span class="m">z ~ vMF(μ<sub>c</sub>,
+        κ<sub>c</sub>)</span>: one precise spot inside the topic where a query should exist.</li>
+      <li><b>Reality check.</b> Keep z only if it is at least as close to some real query as real
+        queries are to each other: <span class="m">max<sub>j</sub>&thinsp;z·q<sub>j</sub> ≥
+        τ<sub>r</sub></span> (the 5th percentile of real nearest-neighbor cosines). Otherwise
+        throw it back and redraw — this is the rejection in the analogy.</li>
+      <li><b>Collect evidence.</b> Retrieve the chunks nearest to z — they become the seed and
+        the gold-label candidates — plus nearby real queries as style examples.</li>
+      <li><b>Generate and land.</b> The LLM writes a candidate; embed it; if
+        <span class="m">cos(emb(q), z) &lt; τ<sub>t</sub></span>, one revision asks it to move
+        closer to the target. The survivor enters the verification gate like any other
+        candidate.</li>
+    </ol>
+    <div class="rs"><b>Why this corrects the bias:</b> steps 1–4 make the <em>targets</em> follow
+    the real query distribution — topic proportions and within-topic shape both — and step 6
+    forces each generated query onto its target. The output distribution q matches p̂ by
+    construction, so the weights w ≈ 1 and nothing needs correcting afterwards.</div>
+    <div class="refline">Banerjee et al., JMLR 2005 (movMF) · Wood 1994 (vMF sampling) ·
+    Morris et al., EMNLP 2023 (embedding-target lineage) ·
+    <code>sampling/spec_sampler.py</code></div>
+  </div>
+
+  <div class="card" id="theory">
+    <h3>Why match at the source instead of re-weighting after? (the theory box)</h3>
+    <p class="sub">Three inequalities justify the whole design — they're cited in SPEC §16 as the
+    theory anchors.</p>
+    <div class="formula"><div class="cap">1 · Pinsker: measured KL bounds headline bias for every system at once</div>
+      <span class="m">|E<sub>p</sub>m − E<sub>q</sub>m| ≤ <span class="mr">TV</span>(p,q) ≤
+      <span class="sqrt"><span class="mr">KL</span>(p<span class="mr">∥</span>q)/2</span></span>
+      <div class="note" style="margin-top:8px">for any bounded metric <span class="m">m</span> ∈ [0,1]: if
+      KL = 0.02, no system's headline can be off by more than √0.01 = 0.1 — and any decision between
+      two systems with a margin &gt; 2·TV is preserved. A low measured KL is a <em>guarantee</em>, not an impression.</div>
+    </div>
+    <div class="formula"><div class="cap">2 · Importance sampling cost is exponential in KL</div>
+      <span class="m">n<sub><span class="mr">needed</span></sub> ≍ e<sup><span class="mr">KL</span>(p∥q)</sup></span>
+      <div class="note" style="margin-top:8px">Chatterjee &amp; Diaconis 2018: correcting a mismatched
+      distribution by re-weighting needs exponentially many samples. That's why A1/A2 match the
+      demand <em>at generation time</em> rather than fixing it afterwards.</div>
+    </div>
+    <div class="formula"><div class="cap">3 · What quota matching leaves behind</div>
+      <span class="m"><span class="mr">residual</span> = <span class="bigop">Σ</span><span class="opsub"><span>c</span></span>
+      p̂<sub>c</sub>&thinsp;<span class="mr">TV</span>(p(·|c), q(·|c))</span>
+      <div class="note" style="margin-top:8px">post-stratification removes between-cluster mismatch
+      entirely; the residual is purely within-cluster — measured by wC2ST, attacked by A2.</div>
+    </div>
+    
+  </div>
+
+  <div class="card">
+    <h3>Why it works — mechanism and payoff</h3>
+    <div class="formula"><div class="cap">why A2 passes this test — the sampling algorithm, mapped to the metric</div>
+      <span class="note" style="display:block;margin-bottom:8px">The three-strategies demo in the fidelity section shows the picture; the
+      <a href="#a2-algo">algorithm above ↑</a> is the mechanism. wC2ST asks one thing of each topic:
+      do the synthetic queries occupy the same region <em>with the same spread</em> as real ones?
+      A1 cannot guarantee that — its generator sees a chunk and style examples, but nothing
+      constrains <em>where inside the topic</em> its output lands, and LLMs drift to their own
+      favorite phrasing: a tighter, shifted blob the classifier separates instantly (wC2ST 1.000).
+      A2 constrains the landing point, step by step:</span>
+      <table class="small">
+        <tr><th>algorithm step</th><th>what it buys inside a topic</th></tr>
+        <tr><td>targets <span class="m">z ~ vMF(μ<sub>c</sub>, κ<sub>c</sub>)</span> — with
+          κ<sub>c</sub> <em>measured from real queries</em></td>
+          <td>the synthetic cloud inherits the topic's true center <em>and</em> true dispersion —
+          many targets reproduce the real spread, not the LLM's attractor</td></tr>
+        <tr><td>reality check <span class="m">max<sub>j</sub>&thinsp;z·q<sub>j</sub> ≥ τ<sub>r</sub></span></td>
+          <td>no synthetic mass where real traffic never goes — no off-manifold tail for the
+          classifier to key on</td></tr>
+        <tr><td>target check <span class="m">cos(emb(q), z) ≥ τ<sub>t</sub></span> + one revision</td>
+          <td>each query actually lands on its own target, so the sampled spread survives
+          generation instead of collapsing back to typical phrasing</td></tr>
+        <tr><td>what remains: map-fit error and the landing tolerance</td>
+          <td>the measured residual — wC2ST 0.680 instead of the 0.5 floor. This is the term the post-stratification residual formula (theory box above) names.</td></tr>
+      </table>
+      <div class="note" style="margin-top:8px"><b>The dispersion is load-bearing — v1 proved it by
+      accident.</b> An early toy A2 aimed every query at the topic's exemplar mean instead of
+      sampling targets with the vMF spread: queries piled onto the center, the dedup check killed
+      60% of them, and fidelity collapsed. Restoring the measured dispersion (κ ≈ 400) is what
+      produced the 0.680. Spread is not decoration; it is the mechanism.</div>
+    </div>
+    <div class="formula"><div class="cap">4 · One objective, two resolutions — why A2 gets fidelity and efficiency together</div>
+      <span class="note">Fidelity and efficiency are not two goals in tension: they are the same
+      gap read at two zoom levels. Efficiency (weights, ESS, coverage) reads the coarse level —
+      the topic totals. Fidelity (KL, C2ST, wC2ST, MAUVE) reads the full distribution, including
+      the shape inside each topic. Matching the full distribution automatically matches its
+      totals — so full fidelity <em>implies</em> full efficiency, never the reverse. A1 is the
+      proof of the gap: ESS/N 0.90 with wC2ST 1.000. A2 aims at the single underlying objective —
+      q ≈ p̂ at generation time — and the v1 table shows dominance, not trade-off: A2 matches
+      A1's efficiency (0.91 vs 0.90) while strictly beating its fidelity. Two deliberate,
+      bounded exceptions: the λ tilt gives rare topics slightly more than their demand share
+      (a sliver of ESS traded for coverage floors), and the dedup guard caps how peaked q may
+      become. Both are chosen knobs — not a fidelity-versus-efficiency dilemma.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONCLUSION ================= -->
+<section id="conclusion">
+  <h2>VI · Conclusion <span class="q">Key takeaways and next steps</span></h2>
+
+  <div class="card concl">
+    <h3>Key takeaways</h3>
+    <ol class="steps">
+      <li><b>Trust is earned, not assumed.</b> A generated test set must look like real traffic
+        (fidelity), cover real demand (coverage &amp; ESS), decide like real queries (validity),
+        and not repeat itself (diversity).</li>
+      <li><b>Matching proportions is not enough.</b> A1 passed its quotas (ESS/N 0.90) yet was
+        fully detectable inside every topic (wC2ST 1.000) and blind to an injected regression
+        (p = 1.00). A2's distribution-matched sampling fixed both: wC2ST 0.680, τ 0.909, all
+        controls detected.</li>
+      <li><b>Coverage, not averages.</b> Report the demand-weighted headline beside the per-topic
+        table, and name the empty topics — the local-corpus run hid a 14% demand gap behind a
+        healthy-looking average.</li>
+      <li><b>Rankings, not scores.</b> Absolute numbers inflate on synthetic collections
+        (Rahmani et al.); trust the ordering — τ and τ<sub>AP</sub> against a measured ORACLE
+        ceiling.</li>
+      <li><b>Always run positive controls.</b> A test set that misses deliberate damage is worse
+        than none: it creates false confidence.</li>
+    </ol>
+  </div>
+
+  <div class="card concl">
+    <h3>Next steps — the v2 roadmap</h3>
+    <ol class="steps">
+      <li><b>Real-benchmark validation</b> on FiQA-2018, NFCorpus and LegalBench-RAG — the run
+        that decides which triggers below fire.</li>
+      <li><b>Graded/pooled relevance judgments</b> (UMBRELA) with judge calibration against
+        ≥ 200 human labels — triggered if τ<sub>AP</sub> stalls while τ passes.</li>
+      <li><b>Closed-loop prompt optimization</b> (MIPROv2, GEPA) steered by the gate's reject
+        reasons — triggered when gate pass-rate and τ plateau.</li>
+      <li><b>Richer meters and scale:</b> Vendi and MAUVE (report-only), the soft demand map,
+        parallel execution, and a ChromaDB backend.</li>
+      <li><b>Beyond today's scope:</b> the multi-turn stratum under MTRAG protocols, and visual
+        grounding with CiteVQA-style masking ablation — see the annex below.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= ANNEX ================= -->
+<section id="annex">
+  <h2>Annex · Further work <span class="q">How the two excluded settings build their data</span></h2>
+
+  <div class="card">
+    <h3>CiteVQA — grounded QA pairs via masking ablation</h3>
+    <p class="sub"><i>CiteVQA: Benchmarking Evidence Attribution for Trustworthy Document
+    Intelligence</i> (arXiv 2605.12882): 1,897 questions over 711 real PDFs — 7 domains, 2
+    languages, 40.6 pages per document on average. Each answer must cite the exact page region
+    that supports it.</p>
+    <ol class="steps">
+      <li>Draft QA pairs over long real documents.</li>
+      <li>Find each answer's <b>crucial evidence</b> automatically by <b>masking ablation</b>:
+        hide a candidate region and re-ask. If the answer becomes impossible, that region is
+        crucial — its element-level bounding box becomes the ground-truth citation.</li>
+      <li>Expert reviewers validate the automated citations.</li>
+      <li>Score with <b>Strict Attributed Accuracy</b>: a prediction counts only when the answer
+        <em>and</em> the cited region are both correct.</li>
+    </ol>
+    <div class="rs"><b>What ragsynth would borrow (roadmap R9):</b> masking ablation as a
+    generation-time filter — keep a generated query only if hiding its claimed evidence actually
+    breaks the answer. It is the visual analogue of v1's round-trip gate check.</div>
+    <div class="refline"><a href="https://arxiv.org/abs/2605.12882" rel="noopener">arXiv:2605.12882</a></div>
+  </div>
+
+  <div class="card">
+    <h3>MTRAG — a human-in-the-loop multi-turn benchmark</h3>
+    <p class="sub"><i>MTRAG: A Multi-Turn Conversational Benchmark for Evaluating
+    Retrieval-Augmented Generation Systems</i> (Katsis et al., 2025): 110 conversations, 7.7
+    turns on average, 842 tasks, over four corpora — Wikipedia (CLAPnq), finance (FiQA),
+    government sites, cloud documentation.</p>
+    <ol class="steps">
+      <li>Human annotators converse with a <b>live RAG system</b> (retriever + generator in the
+        loop), so every next question reacts to a real answer.</li>
+      <li>Per turn, annotators write the question with dimension labels, select the relevant
+        passages, and repair the model's answer into a reference answer — 92% of turns needed
+        repair.</li>
+      <li>Difficulty is designed in: about 25% unanswerable questions, plus non-standalone
+        follow-ups that reference earlier turns — the cases single-turn benchmarks never test.</li>
+      <li>An automated companion (MTRAG-S) generates synthetic conversations over the same
+        corpora — and falls measurably short: 5.9 vs 7.7 turns, 4.6 vs 16.9 unique passages per
+        conversation, and it often produced partially answerable questions where truly
+        unanswerable ones were required.</li>
+    </ol>
+    <div class="rs"><b>What ragsynth would borrow (roadmap R8):</b> the conversational stratum —
+    dialogue generation with per-turn evidence, evaluated under MTRAG's protocols; the
+    <code>dialogue_context</code> field activates then. MTRAG-S's shortfall is also the warning:
+    multi-turn synthesis needs its own validity gates, not just single-turn ones.</div>
+    <div class="refline"><a href="https://arxiv.org/abs/2501.03468" rel="noopener">arXiv:2501.03468</a></div>
+  </div>
+</section>
+
+<!-- ================= REFERENCES ================= -->
+<section id="refs">
+  <h2>References <span class="q">Where each idea comes from</span></h2>
+  <div class="card"><ol class="refs">
+    <li>Chroma — <i>Generative Benchmarking</i> (2025). The KL cosine-profile representativeness monitor. <a href="https://research.trychroma.com/generative-benchmarking" rel="noopener">research.trychroma.com</a></li>
+    <li>Lopez-Paz &amp; Oquab — <i>Revisiting Classifier Two-Sample Tests</i>, ICLR 2017. C2ST. <a href="https://arxiv.org/abs/1610.06545" rel="noopener">arXiv:1610.06545</a></li>
+    <li>Gretton, Borgwardt, Rasch, Schölkopf &amp; Smola — <i>A Kernel Two-Sample Test</i>, JMLR 2012. MMD. <a href="https://jmlr.org/papers/v13/gretton12a.html" rel="noopener">JMLR 13</a></li>
+    <li>Kong — <i>A Note on Importance Sampling using Standardized Weights</i>, 1992. The ESS identity.</li>
+    <li>Chatterjee &amp; Diaconis — <i>The Sample Size Required in Importance Sampling</i>, Ann. Appl. Prob. 2018. Cost ≍ e<sup>KL</sup>. <a href="https://arxiv.org/abs/1511.01437" rel="noopener">arXiv:1511.01437</a></li>
+    <li>Holt &amp; Smith — <i>Post Stratification</i>, JRSS A 1979. The demand-weighted headline.</li>
+    <li>Broestl, Abdalla, Bale, Gupta &amp; Struever (BCG) — <i>Methodological Framework for
+      Quantifying Semantic Test Coverage in RAG Systems</i>. Basic-proximity, content-weighted and
+      multi-topic coverage over a shared embedding space; ragsynth's demand-weighted coverage +
+      floors adapt it. <a href="https://arxiv.org/abs/2510.00001" rel="noopener">arXiv:2510.00001</a>;
+      companion rule <i>Coverage, Not Averages</i>, <a href="https://arxiv.org/abs/2604.20763" rel="noopener">arXiv:2604.20763</a>.</li>
+    <li>Yilmaz, Aslam &amp; Robertson — <i>A New Rank Correlation Coefficient for Information Retrieval</i>, SIGIR 2008. τ<sub>AP</sub>. <a href="https://dl.acm.org/doi/10.1145/1390334.1390435" rel="noopener">DOI</a></li>
+    <li>Webber, Moffat &amp; Zobel — <i>A Similarity Measure for Indefinite Rankings</i>, TOIS 2010. RBO. <a href="https://dl.acm.org/doi/10.1145/1852102.1852106" rel="noopener">DOI</a></li>
+    <li>Sakai — <i>Evaluating Evaluation Metrics based on the Bootstrap</i>, SIGIR 2006. Positive-control p-values. <a href="https://dl.acm.org/doi/10.1145/1148170.1148261" rel="noopener">DOI</a></li>
+    <li>Rahmani, Craswell, Yilmaz, Mitra &amp; Campos — <i>Synthetic Test Collections for Retrieval
+      Evaluation</i>, SIGIR 2024. Fully synthetic mirror of TREC DL 2023; τ = 0.815 (synthetic
+      queries, human judgments) and τ = 0.857 (fully synthetic) vs the real collection — the
+      ceiling that calibrates ragsynth's gates. Scaled up in SynDL (2025).
+      <a href="https://arxiv.org/abs/2405.07767" rel="noopener">arXiv:2405.07767</a></li>
+    <li>Friedman &amp; Dieng — <i>The Vendi Score</i>, TMLR 2023. <a href="https://arxiv.org/abs/2210.02410" rel="noopener">arXiv:2210.02410</a></li>
+    <li>Pillutla et al. — <i>MAUVE</i>, NeurIPS 2021. <a href="https://arxiv.org/abs/2102.01454" rel="noopener">arXiv:2102.01454</a></li>
+    <li>Katsis et al. — <i>MTRAG: A Multi-Turn Conversational Benchmark for Evaluating
+      Retrieval-Augmented Generation Systems</i>, 2025. The multi-turn setting outside v1's scope.
+      <a href="https://arxiv.org/abs/2501.03468" rel="noopener">arXiv:2501.03468</a></li>
+    <li><i>CiteVQA: Benchmarking Evidence Attribution for Trustworthy Document Intelligence</i>.
+      Bounding-box evidence attribution; source of the masking-ablation idea on the v3 roadmap.
+      <a href="https://arxiv.org/abs/2605.12882" rel="noopener">arXiv:2605.12882</a></li>
+    <li>Banerjee, Dhillon, Ghosh &amp; Sra — <i>Clustering on the Unit Hypersphere using von Mises-Fisher Distributions</i>, JMLR 2005. The movMF demand map behind A2. <a href="https://jmlr.org/papers/v6/banerjee05a.html" rel="noopener">JMLR 6</a></li>
+  </ol></div>
+  <footer>Built from ragsynth <code>SPEC.md</code> §8–9 and the v1 toy-world run
+  (<code>experiments/v1/report.md</code>, seed 0). All demos run locally in this page — no data
+  leaves your browser. Numbers labeled "In ragsynth" are the committed experiment results;
+  demo clouds are simulations.</footer>
+</section>
+</main>
+</div>
+
+<script>
+"use strict";
+/* ---------- utilities ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+const $=id=>document.getElementById(id);
+const fmt=(x,d=3)=>Number.isFinite(x)?x.toFixed(d):"–";
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+/* tooltip */
+const tip=$("tip");
+function bindTips(root){
+  root.querySelectorAll("[data-tip]").forEach(el=>{
+    el.addEventListener("mousemove",e=>{tip.textContent=el.getAttribute("data-tip");
+      tip.style.opacity=1;tip.setAttribute("aria-hidden","false");
+      const w=tip.offsetWidth,x=Math.min(e.clientX+14,window.innerWidth-w-8);
+      tip.style.left=x+"px";tip.style.top=(e.clientY+16)+"px"});
+    el.addEventListener("mouseleave",()=>{tip.style.opacity=0;tip.setAttribute("aria-hidden","true")});
+  });
+}
+function copyBtn(btn,buildText){
+  btn.addEventListener("click",()=>{
+    const t=buildText();
+    navigator.clipboard.writeText(t).then(()=>{
+      const old=btn.textContent;btn.textContent="Copied!";setTimeout(()=>btn.textContent=old,1200);
+    }).catch(()=>{btn.textContent="Copy failed — select manually"});
+  });
+}
+function pressGroup(container,onPick){
+  container.addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b)return;
+    container.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    onPick(b.dataset.k);
+  });
+}
+function makePresets(el,items){
+  el.innerHTML=items.map((p,i)=>`<button data-k="${p.k}" aria-pressed="${i===0}">${p.label}</button>`).join("");
+}
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* AUC via rank statistic */
+function auc(scores0,scores1){
+  const all=scores0.map(s=>[s,0]).concat(scores1.map(s=>[s,1])).sort((a,b)=>a[0]-b[0]);
+  let rank=1,sum1=0,i=0;
+  while(i<all.length){
+    let j=i;while(j<all.length-1&&all[j+1][0]===all[i][0])j++;
+    const avg=(rank+(rank+(j-i)))/2;
+    for(let k=i;k<=j;k++){if(all[k][1]===1)sum1+=avg}
+    rank+=j-i+1;i=j+1;
+  }
+  const n1=scores1.length,n0=scores0.length;
+  return (sum1-n1*(n1+1)/2)/(n0*n1);
+}
+/* logistic regression, standardized 2-D features, batch GD */
+function logisticAUC(X0,X1){
+  const X=X0.concat(X1),y=X0.map(()=>0).concat(X1.map(()=>1)),n=X.length;
+  const mu=[0,0],sd=[0,0];
+  for(const p of X){mu[0]+=p[0]/n;mu[1]+=p[1]/n}
+  for(const p of X){sd[0]+=(p[0]-mu[0])**2/n;sd[1]+=(p[1]-mu[1])**2/n}
+  sd[0]=Math.sqrt(sd[0])||1;sd[1]=Math.sqrt(sd[1])||1;
+  const Z=X.map(p=>[(p[0]-mu[0])/sd[0],(p[1]-mu[1])/sd[1]]);
+  let w=[0,0],b=0;
+  for(let it=0;it<250;it++){
+    let gw=[0,0],gb=0;
+    for(let i=0;i<n;i++){
+      const z=w[0]*Z[i][0]+w[1]*Z[i][1]+b,p=1/(1+Math.exp(-z)),e=p-y[i];
+      gw[0]+=e*Z[i][0]/n;gw[1]+=e*Z[i][1]/n;gb+=e/n;
+    }
+    w[0]-=0.9*gw[0];w[1]-=0.9*gw[1];b-=0.9*gb;
+  }
+  const s=Z.map(z=>w[0]*z[0]+w[1]*z[1]+b);
+  return {auc:auc(s.slice(0,X0.length),s.slice(X0.length)),w,b,mu,sd};
+}
+function mmdRBF(X,Y){
+  const pool=X.concat(Y),d2s=[];
+  for(let i=0;i<pool.length;i+=3)for(let j=i+1;j<pool.length;j+=3){
+    d2s.push((pool[i][0]-pool[j][0])**2+(pool[i][1]-pool[j][1])**2)}
+  d2s.sort((a,b)=>a-b);
+  const med=d2s[Math.floor(d2s.length/2)]||1,g=1/Math.max(med,1e-12);
+  const k=(a,b)=>Math.exp(-g*((a[0]-b[0])**2+(a[1]-b[1])**2));
+  let xx=0,yy=0,xy=0;  const n=X.length,m=Y.length;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(i!==j)xx+=k(X[i],X[j]);
+  for(let i=0;i<m;i++)for(let j=0;j<m;j++)if(i!==j)yy+=k(Y[i],Y[j]);
+  for(let i=0;i<n;i++)for(let j=0;j<m;j++)xy+=k(X[i],Y[j]);
+  const kxx=xx/(n*(n-1)),kyy=yy/(m*(m-1)),kxy=xy/(n*m);
+  return {mmd2:Math.max(kxx+kyy-2*kxy,0),kxx,kyy,kxy};
+}
+
+/* ============ D00 · Notation, interactive ============ */
+(function(){
+  const TOPICS=["Water damage","Billing","Cancellation"];
+  const CTR=[[105,86],[268,86],[186,208]];
+  const RN=[6,4,2], NR=12;
+  const PH=RN.map(x=>x/NR);
+  const SET={match:[6,4,2],uni:[4,4,4],gap:[8,4,0]};
+  const st={mode:"match"};
+  function lat(cx,cy,k){
+    const out=[];for(let i=0;i<k;i++){
+      out.push([cx+((i%3)-1)*12, cy+Math.floor(i/3)*12]);}
+    return out;
+  }
+  const CH=CTR.map(c=>[[-32,-24],[28,-28],[-36,14],[32,18],[0,-36]].map(o=>[c[0]+o[0],c[1]+o[1]]));
+  function render(){
+    const n=SET[st.mode],N=n.reduce((a,b)=>a+b,0);
+    const q=n.map(x=>x/N);
+    const W=640,H=290;
+    let g="";
+    for(let c=0;c<3;c++){
+      const cx=CTR[c][0],cy=CTR[c][1];
+      g+=`<ellipse cx="${cx}" cy="${cy}" rx="62" ry="48" fill="var(--ring)"/>`;
+      g+=CH[c].map(p=>`<rect x="${p[0]-2.6}" y="${p[1]-2.6}" width="5.2" height="5.2" rx="1" fill="var(--muted)" fill-opacity=".5"/>`).join("");
+      g+=lat(cx-20,cy-10,RN[c]).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--real)"/>`).join("");
+      g+=lat(cx+20,cy-10,n[c]).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--synth)"/>`).join("");
+      g+=`<text x="${cx}" y="${cy+64}" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="650">${TOPICS[c]}</text>
+          <text x="${cx}" y="${cy+78}" font-size="10.5" fill="var(--muted)" text-anchor="middle">${RN[c]} real · ${n[c]} generated</text>`;
+    }
+    $("nt-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Three insurance topics with countable real and generated queries">
+      <rect width="380" height="${H}" fill="var(--page)" rx="8"/>
+      ${g}
+      <g font-size="11.5">
+        <text x="400" y="30" fill="var(--ink)" font-weight="650">How to read it</text>
+        <circle cx="404" cy="50" r="4" fill="var(--real)"/>
+        <text x="414" y="54" fill="var(--ink-2)">real user queries — 12 in total</text>
+        <circle cx="404" cy="72" r="4" fill="var(--synth)"/>
+        <text x="414" y="76" fill="var(--ink-2)">generated queries — ${N} in total</text>
+        <rect x="400" y="90" width="5.2" height="5.2" rx="1" fill="var(--muted)" fill-opacity=".5"/>
+        <text x="414" y="97" fill="var(--ink-2)">document chunks</text>
+        <text x="400" y="124" fill="var(--muted)" font-size="10.5">One bubble = one topic (cluster).</text>
+        <text x="400" y="138" fill="var(--muted)" font-size="10.5">Count blue dots → demand p̂.</text>
+        <text x="400" y="152" fill="var(--muted)" font-size="10.5">Count orange dots → shares q.</text>
+      </g>
+    </svg>`;
+    const rows=PH.map((p,c)=>{
+      const w=q[c]>0?p/q[c]:NaN;
+      const ok=q[c]>0&&Math.abs(w-1)<0.15;
+      return `<tr><td>${TOPICS[c]}</td>
+        <td>${RN[c]}/12 = ${p.toFixed(2)}</td><td>${n[c]}</td>
+        <td>${n[c]}/${N} = ${q[c].toFixed(2)}</td>
+        <td style="color:${ok?"var(--good)":"var(--bad)"};font-weight:650">${q[c]>0?w.toFixed(2):"∞ — uncovered"}</td></tr>`;
+    }).join("");
+    const msg={
+      match:"Every topic has as many orange dots as blue — all weights are 1, nothing to correct. This is what A2 aims for.",
+      uni:"Same number of orange dots everywhere: Water damage is under-asked (w = 1.5), Cancellation over-asked (w = 0.5) — re-weighting must stretch and shrink, which wastes power.",
+      gap:"Cancellation has no orange dot at all: q = 0. No weight can fix an empty topic — that is a coverage gap."};
+    $("nt-table").innerHTML=`<table class="small">
+      <tr><th>topic c</th><th>demand p̂_c (count blue)</th><th>n_c</th><th>share q_c (count orange)</th><th>weight w = p̂_c/q_c</th></tr>
+      ${rows}</table>
+      <p class="note" style="margin:6px 0 0">${msg[st.mode]}</p>`;
+  }
+  makePresets($("nt-presets"),[
+    {k:"match",label:"matched to demand"},{k:"uni",label:"uniform"},{k:"gap",label:"one topic ignored"}]);
+  pressGroup($("nt-presets"),k=>{st.mode=k;render()});
+  render();
+})();
+
+/* ============ D0 · Generation pipeline explorer ============ */
+(function(){
+  const PIPE=[
+   {name:"1 · Seed sampler", fm:"2 · efficiency & coverage — and, for A2, 1 · fidelity (within-topic shape)",
+    what:"Decides what each query will be generated from: which chunks — or, for A2, which target locations in embedding space. This is exactly where the three sampling strategies (random / stratified cluster / distribution-matched) differ.",
+    ex:"The demand map says billing ≈ 40% of real traffic, so about 40% of seeds come from billing chunks (A1/A2). A0 ignores demand and picks uniformly — that alone costs it ESS/N 0.55 vs 0.90.",
+    gain:"Matches demand at the source, so ESS/N rises — fixing the mix afterwards by re-weighting needs exponentially many samples.",
+    up:"v2: soft demand map (movMF responsibilities); R3: persona × query-type strata; v2.06: a small ε of seeds routed by content-coverage floors to chunk clusters users have not queried yet — early warning the demand map cannot give.",
+    papers:"Kong 1992 (ESS) · Chatterjee &amp; Diaconis 2018 (cost of re-weighting) · Banerjee et al., JMLR 2005 (movMF)",
+    links:[["#ess","ESS"],["#coverage","coverage"]]},
+   {name:"2 · Context assembler", fm:"1 · fidelity — style realism",
+    what:"Builds what the generator sees: the seed chunk(s) plus a few real queries from the same topic as style examples, and topic-aware instructions.",
+    ex:"Seed = a proration doc chunk; the prompt also shows 3 real billing queries (\"why does my invoice show…\") so the generator imitates how users in that topic actually write.",
+    gain:"Style realism — the classifier finds fewer surface tells, so C2ST falls toward 0.5.",
+    up:"Optimized exemplar selection (v2 optimizer spec); persona conditioning and query roughening (typos, keyword style) per R4.",
+    papers:"Dai et al., Promptagator (few-shot per-task prompts) · Bonifacio et al., InPars · Penha et al., ECIR 2022 (roughening) · Ge et al. 2024 (personas)",
+    links:[["#c2st","C2ST"]]},
+   {name:"3 · Query generator", fm:"1 · fidelity — within-topic shape",
+    what:"Overgenerates: several candidate queries per seed with answer-first prompting. A2 adds a target check — the candidate must embed close to the sampled target location, with one revision attempt if not.",
+    ex:"3 candidates per seed; a candidate embedding at cosine 0.62 to the target misses the τ_t bar, gets one revision (\"more specific about credit notes\"), then passes at 0.81.",
+    gain:"Within-topic shape — the target check is why A2's wC2ST is 0.680 while A1's is 1.000.",
+    up:"Closed-loop prompt optimization (MIPROv2, GEPA) with the gate's reject tallies as feedback — v2 spec 03, triggered when pass-rate and τ plateau.",
+    papers:"Morris et al., EMNLP 2023 (vec2text lineage) · Opsahl-Ong et al., EMNLP 2024 (MIPROv2) · Agrawal et al. 2025 (GEPA)",
+    links:[["#wc2st","wC2ST"]]},
+   {name:"4 · Verification gate", fm:"4 · diversity (dedup) · 3 · validity (label precision)",
+    subs:"<b>dedup</b> (cos ≥ 0.98 vs kept queries) → zero-context → answerability (LLM judge) → round-trip retrieval → uniqueness",
+    what:"Five ordered checks, cheapest first; a failure short-circuits the rest — so near-duplicates are discarded by the free dedup check before any paid LLM-judge call runs. Round-trip = the seed chunk must rank top-k for its own query; uniqueness promotes extra answering chunks to gold.",
+    ex:"\"What is Ledgerline?\" fails round-trip — it is so generic that other chunks outrank its seed. A near-copy of a kept query fails dedup. The toy A1 run rejected 227 near-duplicates and 5 round-trip failures.",
+    gain:"Precision of the labels — every surviving query is answerable from its gold chunk and retrievable back to it. Reject tallies double as a diagnosis of what to fix upstream.",
+    up:"v3 (R9): masking ablation as a crucial-evidence filter — keep a query only if hiding its claimed evidence breaks the answer (the CiteVQA idea, annex).",
+    papers:"Dai et al., Promptagator (round-trip consistency filter) · CiteVQA, arXiv 2605.12882 (masking ablation)",
+    links:[["#controls","positive controls"]]},
+   {name:"5 · Qrel builder", fm:"3 · validity — correct labels make correct rankings",
+    what:"Writes the relevance labels. v1 is binary: gold = the seed chunks plus the gate's uniqueness promotions, grade 1; every record stores content hashes so labels survive knowledge-base churn.",
+    ex:"A proration query gets its seed chunk as gold, plus a second chunk the judge confirmed also answers it.",
+    gain:"Complete, churn-proof labels — the promotions prevent \"right answer, wrong chunk\" false negatives.",
+    up:"v2 spec 02: graded 0–3 labels via an UMBRELA judge with pooling over the system zoo, κ-calibrated against ≥ 200 human labels — fills the unjudged holes that stall τ_AP.",
+    papers:"Upadhyay, Clarke &amp; Lin 2024 (UMBRELA) · Fröbe et al., SIGIR 2025 (circularity guard)",
+    links:[["#tau","τ_AP"]]},
+   {name:"6 · Curator", fm:"2 · efficiency (final mix) · 4 · diversity (global dedup) · honest 1 · fidelity (memorization audit)",
+    what:"Final assembly: stratified subsample to the target mix, a second, global dedup pass (the gate deduplicates within its own stream; subsampling and uniqueness promotions can reintroduce near-twins across batches), and a memorization audit — any generated query at cosine ≥ 0.9 to a real production query is flagged (kept, but marked).",
+    ex:"A generated query nearly identical to a real user's logged query gets a memorization flag: it would inflate fidelity scores without testing anything new.",
+    gain:"Honest metrics — leakage of real queries into the synthetic set would make every fidelity number look better than it is.",
+    up:"v2 (R6): hash-keyed recycle / re-gate / regenerate on ingest events, so the set refreshes as the knowledge base churns.",
+    papers:"Chroma 2025 (verbatim-reproduction audit)",
+    links:[["#kl","KL"],["#diversity","diversity"]]},
+   {name:"7 · Validator", fm:"measures all four",
+    what:"The proof step: runs the full metric harness of Part IV — fidelity, efficiency, validity, diversity — for all four strategies against the anchor set and the system zoo, and applies the gates.",
+    ex:"The v1 toy run: only A2 passes τ ≥ 0.9; A1 fails the noise control; the report says so instead of averaging it away.",
+    gain:"The verdict itself — usable for model selection, or regression-detection only. Without this step everything before it is unverified generation.",
+    up:"v2: regeneration stability across seeds, per-stratum gate verdicts, real-benchmark runs (spec 01) deciding which roadmap triggers fire.",
+    papers:"Everything in Part IV — Lopez-Paz &amp; Oquab · Gretton et al. · Kong · BCG · Yilmaz et al. · Webber et al. · Sakai · Rahmani et al.",
+    links:[["#tau","τ / τ_AP"],["#ess","ESS"]]},
+   {name:"∥ LLM judge & alignment", par:true, fm:"3 · validity — every label is only as good as the judge",
+    what:"Not a stage in the row — a parallel track. A separate LLM, deliberately from a different model family than the generator, serves steps 4 and 5: answerability verdicts, uniqueness confirmations, and (v2) graded relevance. Because its verdicts become labels, the judge itself must be validated — that is eval alignment.",
+    ex:"Qwen generates; Llama judges. The gate asks \"can this chunk answer this query?\" and receives {answerable: true, confidence: 0.83}. If generator and judge share a family, ragsynth warns — a model grading its own family's output is circular.",
+    gain:"Trust in every label the pipeline emits. Rahmani et al. measured why this cannot be skipped: GPT-4 judge vs human agreement was only κ ≈ 0.24–0.26, and humans confirmed its \"perfectly relevant\" labels in 28% of cases.",
+    up:"v2 spec: UMBRELA graded judging plus a calibration tool — weighted κ against ≥ 200 human labels, a ≥ 90% human-precision floor, and the circularity guard hardened from warning to error.",
+    papers:"Thomas et al. 2023 (judge prompt) · Upadhyay, Clarke &amp; Lin 2024 (UMBRELA) · Fröbe et al., SIGIR 2025 (circularity) · Rahmani et al., SIGIR 2024 (κ evidence)",
+    links:[["#tau","validity"],["#controls","controls"]]},
+  ];
+  let cur=0;
+  const nodes=$("pipe-nodes"),panel=$("pipe-panel");
+  nodes.innerHTML=PIPE.map((s,i)=>
+    `<button role="tab" class="${s.par?"par":""}" data-i="${i}" aria-pressed="${i===0}">${s.name}</button>${i<PIPE.length-1?`<span class="arr">${PIPE[i+1].par?"∥":"→"}</span>`:''}`).join("");
+  function render(){
+    nodes.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.i===cur));
+    const s=PIPE[cur];
+    panel.innerHTML=`
+      ${s.subs?`<div class="pp-row"><span class="k">checks, in order</span><span class="v">${s.subs}</span></div>`:""}
+      <div class="pp-row"><span class="k">what it does</span><span class="v">${s.what}</span></div>
+      <div class="pp-row"><span class="k">example</span><span class="v">${s.ex}</span></div>
+      <div class="pp-row"><span class="k">failure modes</span><span class="v">${s.fm}</span></div>
+      <div class="pp-row"><span class="k">what improves</span><span class="v">${s.gain}
+        &nbsp;${s.links.map(([h,t])=>`<a href="${h}">${t} ↓</a>`).join(" · ")}</span></div>
+      <div class="pp-row"><span class="k">upgrade path</span><span class="v">${s.up}</span></div>
+      <div class="pp-row" style="margin-bottom:0"><span class="k">papers</span><span class="v" style="color:var(--muted);font-size:13px">${s.papers}</span></div>`;
+  }
+  nodes.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;cur=+b.dataset.i;render()});
+  $("pipe-prev").addEventListener("click",()=>{cur=(cur+PIPE.length-1)%PIPE.length;render()});
+  $("pipe-next").addEventListener("click",()=>{cur=(cur+1)%PIPE.length;render()});
+  render();
+})();
+
+/* ============ D1 · KL histograms ============ */
+(function(){
+  const rng=mulberry32(7);
+  const realBase=[],synthBase=[];
+  for(let i=0;i<1600;i++)realBase.push({tail:rng()<0.22,z:gauss(rng)});
+  for(let i=0;i<1600;i++)synthBase.push({tail:rng()<0.22,z:gauss(rng)});
+  /* simulated embedding models: each reshapes BOTH cosine profiles */
+  const EMB={
+    strong:{name:"sentence-transformer",main:[0.64,0.065],tail:[0.46,0.05],bias:0,shiftScale:1,
+      note:"A healthy embedder: real queries sit at moderate distance from the corpus, paraphrases measurably closer. Separation is real, so the ≤ 0.16 band is meaningful."},
+    weak:{name:"hashed n-grams",main:[0.34,0.10],tail:[0.22,0.06],bias:0.18,shiftScale:1,
+      note:"A weak lexical embedder: token overlap drags generated paraphrases unnaturally close while real queries sit far — KL is large even at zero shift. The metric is blaming the embedder, not the generator (the v1 local-corpus run scored KL > 10 exactly this way)."},
+    sat:{name:"saturated",main:[0.88,0.028],tail:[0.82,0.02],bias:0.01,shiftScale:0.15,
+      note:"An anisotropic embedder where every cosine ≈ 0.9: all profiles squeeze into a narrow band, so the same generator shift that alarms loudly on a healthy embedder (KL ≈ 2.5) reads three times smaller here (KL ≈ 0.8) — low KL can be resolution loss, not fidelity. Validate the embedder before trusting the band."}};
+  const st={shift:0,spread:1,emb:"strong"};
+  function samples(base,isSynth){
+    const E=EMB[st.emb];
+    return base.map(s=>{
+      const p=s.tail?E.tail:E.main;
+      const shift=isSynth?(E.bias+st.shift*E.shiftScale):0;
+      const spread=isSynth?st.spread:1;
+      return clamp(p[0]+shift+p[1]*spread*s.z,0.02,0.98);
+    });
+  }
+  function histPair(a,b,bins){
+    const lo=Math.min(...a,...b),hi=Math.max(...a,...b)+1e-9,wBin=(hi-lo)/bins;
+    const p=new Array(bins).fill(0),q=new Array(bins).fill(0);
+    a.forEach(x=>p[Math.min(bins-1,Math.floor((x-lo)/wBin))]++);
+    b.forEach(x=>q[Math.min(bins-1,Math.floor((x-lo)/wBin))]++);
+    const eps=1e-6,ps=p.map(x=>x+eps),qs=q.map(x=>x+eps);
+    const sp=ps.reduce((s,x)=>s+x,0),sq=qs.reduce((s,x)=>s+x,0);
+    return {p:ps.map(x=>x/sp),q:qs.map(x=>x/sq),lo,wBin};
+  }
+  function render(){
+    const real=samples(realBase,false),synth=samples(synthBase,true);
+    const bins=36,h=histPair(real,synth,bins);
+    let kl=0;for(let i=0;i<bins;i++)kl+=h.p[i]*Math.log(h.p[i]/h.q[i]);
+    const W=640,H=210,padL=10,padB=24,maxc=Math.max(...h.p,...h.q);
+    const bw=(W-2*padL)/bins;
+    let bars="";
+    for(let i=0;i<bins;i++){
+      const x=padL+i*bw;
+      const hp=(H-padB-8)*h.p[i]/maxc,hq=(H-padB-8)*h.q[i]/maxc;
+      const c=h.p[i]*Math.log(h.p[i]/h.q[i]);
+      const t=`bin ${(h.lo+i*h.wBin).toFixed(2)}–${(h.lo+(i+1)*h.wBin).toFixed(2)}\nreal p=${h.p[i].toFixed(3)}  synth q=${h.q[i].toFixed(3)}\nKL contribution p·ln(p/q) = ${c>=0?"+":""}${c.toFixed(4)}`;
+      bars+=`<g data-tip="${t}">
+        <rect x="${x+1}" y="${H-padB-hp}" width="${bw-3}" height="${hp}" rx="2" fill="var(--real-soft)" stroke="var(--real)" stroke-width="1.2"/>
+        <rect x="${x+1}" y="${H-padB-hq}" width="${bw-3}" height="${hq}" rx="2" fill="var(--synth-soft)" stroke="var(--synth)" stroke-width="1.2"/>
+      </g>`;
+    }
+    $("kl-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Overlaid histograms of top-1 cosine for real and synthetic queries">
+      ${bars}
+      <line x1="${padL}" y1="${H-padB}" x2="${W-padL}" y2="${H-padB}" stroke="var(--axis)"/>
+      <text x="${padL}" y="${H-6}" font-size="11" fill="var(--muted)">← queries far from corpus</text>
+      <text x="${W-padL}" y="${H-6}" font-size="11" fill="var(--muted)" text-anchor="end">paraphrase-close →</text>
+      <text x="${padL+4}" y="14" font-size="11.5" fill="var(--real)">real</text>
+      <text x="${padL+38}" y="14" font-size="11.5" fill="var(--synth)">synthetic</text>
+      <text x="${W-padL}" y="14" font-size="11" fill="var(--muted)" text-anchor="end">top-1 cos(query, corpus) · ${EMB[st.emb].name} →</text>
+    </svg>`;
+    bindTips($("kl-chart"));
+    $("kl-out").textContent=fmt(kl);
+    $("kl-band").innerHTML=kl<=0.16?'inside the ≤ 0.16 reference band':'outside the ≤ 0.16 reference band';
+    $("kl-band").style.color=kl<=0.16?css("--good"):css("--bad");
+    $("kl-emb-note").innerHTML=`<b>${EMB[st.emb].name}:</b> ${EMB[st.emb].note}`;
+    $("kl-shift-v").textContent=(st.shift>=0?"+":"")+st.shift.toFixed(2);
+    $("kl-spread-v").textContent=st.spread.toFixed(2);
+    st.kl=kl;
+  }
+  $("kl-shift").addEventListener("input",e=>{st.shift=+e.target.value;render()});
+  $("kl-spread").addEventListener("input",e=>{st.spread=+e.target.value;render()});
+  makePresets($("kl-presets"),[
+    {k:"match",label:"matched"},{k:"shift",label:"too close to corpus"},{k:"collapse",label:"mode collapse"}]);
+  pressGroup($("kl-presets"),k=>{
+    if(k==="match"){st.shift=0;st.spread=1}
+    if(k==="shift"){st.shift=0.14;st.spread=0.9}
+    if(k==="collapse"){st.shift=0.05;st.spread=0.4}
+    $("kl-shift").value=st.shift;$("kl-spread").value=st.spread;render();
+  });
+  makePresets($("kl-emb"),[
+    {k:"strong",label:"sentence-transformer"},{k:"weak",label:"hashed n-grams"},{k:"sat",label:"saturated"}]);
+  pressGroup($("kl-emb"),k=>{st.emb=k;render()});
+  copyBtn($("kl-copy"),()=>`In ragsynth's fidelity block, with a simulated ${EMB[st.emb].name} embedding model, KL(real‖synth) over top-1 query→chunk cosine histograms is ${fmt(st.kl)} at shift ${st.shift>=0?"+":""}${st.shift.toFixed(2)} and ${st.spread.toFixed(2)}× spread. Explain how the embedding model reshapes both cosine profiles, why a weak lexical embedder inflates KL at zero shift while a saturated one hides real differences, and why Chroma's ≤0.16 band is only meaningful on a well-behaved embedder.`);
+  render();
+})();
+
+/* ============ D2 · C2ST + MMD ============ */
+(function(){
+  const rng=mulberry32(11);
+  const N=140;
+  const mk=(cx,cy,a,b,th,n,r)=>{const out=[];for(let i=0;i<n;i++){
+    const u=gauss(r)*a,v=gauss(r)*b,c=Math.cos(th),s=Math.sin(th);
+    out.push([cx+u*c-v*s,cy+u*s+v*c])}return out};
+  const realPts=mk(-1.1,-0.35,0.85,0.35,0.5,N/2,rng).concat(mk(0.9,0.6,0.7,0.3,-0.4,N/2,rng));
+  const base=[];for(let i=0;i<N;i++)base.push([gauss(rng),gauss(rng),rng()]);
+  const st={shift:0.45};
+  function synthPts(){
+    const t=st.shift;
+    return base.map(([z1,z2,u],i)=>{
+      const half=u<0.5;
+      const cx=half?-1.1:0.9,cy=half?-0.35:0.6;
+      const a=half?0.85:0.7,b=half?0.35:0.3,th=(half?0.5:-0.4)*(1-t);
+      const A=a*(1-0.35*t)+0.55*t*0.5,B=b*(1+0.9*t);
+      const c=Math.cos(th),s=Math.sin(th),u1=z1*A,v1=z2*B;
+      return [cx+t*1.35+u1*c-v1*s,cy-t*0.75+u1*s+v1*c];
+    });
+  }
+  function render(){
+    const S=synthPts(),fit=logisticAUC(realPts,S),md=mmdRBF(realPts,S),m2=md.mmd2;
+    const W=640,H=290,xs=x=>W/2+x*95,ys=y=>H/2-y*82;
+    const pts=realPts.map(p=>`<circle cx="${xs(p[0]).toFixed(1)}" cy="${ys(p[1]).toFixed(1)}" r="3.4" fill="var(--real)" fill-opacity=".75"/>`).join("")+
+      S.map(p=>`<circle cx="${xs(p[0]).toFixed(1)}" cy="${ys(p[1]).toFixed(1)}" r="3.4" fill="var(--synth)" fill-opacity=".75"/>`).join("");
+    /* decision boundary in raw coords: w·((x-mu)/sd)+b=0 */
+    let boundary="";
+    const {w,b,mu,sd}=fit;
+    const wa=w[0]/sd[0],wb=w[1]/sd[1],cc=b-w[0]*mu[0]/sd[0]-w[1]*mu[1]/sd[1];
+    if(Math.abs(wb)>1e-9){
+      const xA=-3.4,xB=3.4,yA=(-cc-wa*xA)/wb,yB=(-cc-wa*xB)/wb;
+      boundary=`<line x1="${xs(xA)}" y1="${ys(yA)}" x2="${xs(xB)}" y2="${ys(yB)}"
+        stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 5"/>`;
+    }
+    $("ts-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Scatter of real and synthetic embedding clouds with a logistic decision boundary">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="var(--surface)" rx="8"/>
+      ${boundary}${pts}
+      <text x="14" y="22" font-size="11.5" fill="var(--real)">real cloud</text>
+      <text x="14" y="38" font-size="11.5" fill="var(--synth)">synthetic cloud</text>
+      <text x="14" y="54" font-size="11.5" fill="var(--accent)">logistic boundary (the C2ST discriminator)</text>
+    </svg>`;
+    $("ts-auc").textContent=fmt(Math.max(fit.auc,1-fit.auc));
+    $("ts-mmd").textContent=fmt(m2*1000,2);
+    $("ts-kxx").textContent=fmt(md.kxx,3);
+    $("ts-kyy").textContent=fmt(md.kyy,3);
+    $("ts-kxy").textContent=fmt(md.kxy,3);
+    $("ts-kxy").style.color=(md.kxy<Math.min(md.kxx,md.kyy)-0.02)?css("--bad"):css("--good");
+    $("ts-shift-v").textContent=st.shift.toFixed(2);
+    st.auc=Math.max(fit.auc,1-fit.auc);st.m2=m2;
+  }
+  $("ts-shift").addEventListener("input",e=>{st.shift=+e.target.value;render()});
+  makePresets($("ts-presets"),[{k:"mid",label:"partial match"},{k:"match",label:"matched"},{k:"far",label:"way off"}]);
+  pressGroup($("ts-presets"),k=>{
+    st.shift=k==="match"?0:(k==="mid"?0.45:1);
+    $("ts-shift").value=st.shift;render();
+  });
+  copyBtn($("ts-copy"),()=>`In a two-sample test demo, at distribution shift ${st.shift.toFixed(2)} the C2ST logistic AUC is ${fmt(st.auc)} and unbiased MMD²×10³ is ${fmt(st.m2*1000,2)}. Explain when C2ST and MMD disagree, why C2ST needs cross-validation to be honest, and what the discriminator's coefficients reveal in ragsynth's "what does the discriminator use" diagnostic.`);
+  render();
+})();
+
+/* ============ D2b · MAUVE frontier ============ */
+(function(){
+  const P=[0.26,0.21,0.16,0.12,0.09,0.07,0.05,0.03,0.01];
+  const st={hall:0,coll:0};
+  const C=3; /* illustrative scaling constant */
+  function qdist(){
+    let q=P.map((p,i)=>(1-st.coll)*p+(i===0?st.coll:0));
+    q=q.map((x,i)=>i===8?x+st.hall:x*(1-st.hall));
+    const s=q.reduce((a,b)=>a+b,0);
+    return q.map(x=>x/s);
+  }
+  function kl(a,b){let s=0;for(let i=0;i<a.length;i++){
+    const ai=Math.max(a[i],1e-9),bi=Math.max(b[i],1e-9);s+=ai*Math.log(ai/bi)}return s}
+  function render(){
+    const Q=qdist(),pts=[];
+    for(let t=0;t<=40;t++){const lam=Math.min(Math.max(t/40,1e-3),1-1e-3);
+      const R=P.map((p,i)=>lam*p+(1-lam)*Q[i]);
+      pts.push([Math.exp(-C*kl(Q,R)),Math.exp(-C*kl(P,R))]);
+    }
+    pts.sort((a,b)=>a[0]-b[0]);
+    let auc=pts[0][0]*pts[0][1];
+    for(let i=1;i<pts.length;i++)
+      auc+=(pts[i][0]-pts[i-1][0])*(pts[i][1]+pts[i-1][1])/2;
+    /* draw: histograms left, frontier right */
+    const W=640,H=250,hx0=16,hw=(330-hx0)/9,hy=H-38,hmax=Math.max(...P,...Q);
+    let bars="";
+    for(let i=0;i<9;i++){
+      const x=hx0+i*hw;
+      const hp=(H-80)*P[i]/hmax,hq=(H-80)*Q[i]/hmax;
+      const t=`bin ${i===8?"9 — rare in real traffic":i+1}\nreal P=${P[i].toFixed(3)}  synth Q=${Q[i].toFixed(3)}${i===8&&Q[8]>0.05?"\n← invented mass (quality error)":""}${i>3&&Q[i]<P[i]*0.4?"\n← missed mass (coverage error)":""}`;
+      bars+=`<g data-tip="${t}">
+        <rect x="${x+1}" y="${hy-hp}" width="${hw/2-2}" height="${Math.max(hp,1)}" rx="2" fill="var(--real)"/>
+        <rect x="${x+hw/2}" y="${hy-hq}" width="${hw/2-2}" height="${Math.max(hq,1)}" rx="2" fill="var(--synth)"/>
+        <text x="${x+hw/2-1}" y="${hy+13}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${i+1}</text>
+      </g>`;
+    }
+    const fx0=392,fy0=26,fs=188;
+    const path=pts.map((p,i)=>`${i?"L":"M"}${(fx0+p[0]*fs).toFixed(1)},${(fy0+fs-p[1]*fs).toFixed(1)}`).join(" ");
+    const area=`M${fx0},${fy0+fs} L${fx0},${(fy0+fs-pts[0][1]*fs).toFixed(1)} L${pts.map(p=>`${(fx0+p[0]*fs).toFixed(1)},${(fy0+fs-p[1]*fs).toFixed(1)}`).join(" L")} L${(fx0+pts[pts.length-1][0]*fs).toFixed(1)},${fy0+fs} Z`;
+    $("mv-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Real and generated histograms and the MAUVE divergence frontier">
+      <text x="${hx0}" y="16" font-size="11.5" fill="var(--muted)">quantized bins — <tspan fill="var(--real)">real P</tspan> vs <tspan fill="var(--synth)">generated Q</tspan></text>
+      ${bars}
+      <line x1="${hx0}" y1="${hy}" x2="330" y2="${hy}" stroke="var(--axis)"/>
+      <text x="${hx0+8*hw+hw/2-1}" y="${hy+25}" font-size="9" fill="var(--bad)" text-anchor="middle">rare/invented</text>
+      <rect x="${fx0}" y="${fy0}" width="${fs}" height="${fs}" fill="var(--surface)" stroke="var(--grid)"/>
+      <path d="${area}" fill="var(--accent)" fill-opacity=".18"/>
+      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.2"/>
+      <text x="${fx0+fs/2}" y="${fy0+fs+16}" font-size="10.5" fill="var(--muted)" text-anchor="middle">precision-like: nothing invented →</text>
+      <text x="${fx0-8}" y="${fy0+fs/2}" font-size="10.5" fill="var(--muted)" text-anchor="middle" transform="rotate(-90 ${fx0-8} ${fy0+fs/2})">recall-like: nothing missed →</text>
+      <text x="${fx0+fs-4}" y="${fy0+14}" font-size="11" fill="var(--accent)" text-anchor="end">frontier · area = ${auc.toFixed(2)}</text>
+    </svg>`;
+    bindTips($("mv-chart"));
+    $("mv-out").textContent=fmt(auc,2);
+    $("mv-hall-v").textContent=st.hall.toFixed(2);
+    $("mv-coll-v").textContent=st.coll.toFixed(2);
+    st.auc=auc;
+  }
+  $("mv-hall").addEventListener("input",e=>{st.hall=+e.target.value;render()});
+  $("mv-coll").addEventListener("input",e=>{st.coll=+e.target.value;render()});
+  makePresets($("mv-presets"),[
+    {k:"match",label:"matched"},{k:"hall",label:"hallucinating"},{k:"coll",label:"collapsed"},{k:"both",label:"both"}]);
+  pressGroup($("mv-presets"),k=>{
+    st.hall=(k==="hall"||k==="both")?0.35:0;
+    st.coll=(k==="coll"||k==="both")?0.7:0;
+    $("mv-hall").value=st.hall;$("mv-coll").value=st.coll;render();
+  });
+  copyBtn($("mv-copy"),()=>`In the MAUVE demo, with invented mass ${st.hall.toFixed(2)} and mode collapse ${st.coll.toFixed(2)}, the divergence frontier has area ${fmt(st.auc,2)}. Explain how the frontier of mixtures R_λ=λP+(1−λ)Q separates quality errors (KL(Q‖R): invented mass) from coverage errors (KL(P‖R): missed mass), and why a single KL number cannot distinguish them.`);
+  render();
+})();
+
+/* ============ D3 · within-cluster C2ST ============ */
+(function(){
+  const rng=mulberry32(23);
+  const NR=160;
+  const mkC=(cx,cy,a,b,th,n,r)=>{const o=[];for(let i=0;i<n;i++){
+    const u=gauss(r)*a,v=gauss(r)*b,c=Math.cos(th),s=Math.sin(th);
+    o.push([cx+u*c-v*s,cy+u*s+v*c])}return o};
+  const real0=mkC(-1.25,0,0.75,0.22,0.65,Math.round(NR*0.6),rng);
+  const real1=mkC(1.3,0.15,0.6,0.2,-0.5,Math.round(NR*0.4),rng);
+  const st={mode:"a1"};
+  function synth(){
+    const r=mulberry32(31);
+    if(st.mode==="a0"){
+      return {s0:mkC(-0.98,0.3,0.4,0.4,0,Math.round(NR*0.3),r),
+              s1:mkC(1.06,-0.18,0.42,0.42,0,Math.round(NR*0.7),r)};
+    }
+    if(st.mode==="a1"){
+      return {s0:mkC(-0.98,0.3,0.4,0.4,0,Math.round(NR*0.6),r),
+              s1:mkC(1.06,-0.18,0.42,0.42,0,Math.round(NR*0.4),r)};
+    }
+    return {s0:mkC(-1.25,0,0.78,0.25,0.65,Math.round(NR*0.6),r),
+            s1:mkC(1.3,0.15,0.63,0.23,-0.5,Math.round(NR*0.4),r)};
+  }
+  function render(){
+    const {s0,s1}=synth();
+    const gAUC=logisticAUC(real0.concat(real1),s0.concat(s1)).auc;
+    const a0=logisticAUC(real0,s0).auc,a1c=logisticAUC(real1,s1).auc;
+    const w0=Math.max(a0,1-a0),w1=Math.max(a1c,1-a1c);
+    const g=Math.max(gAUC,1-gAUC);
+    const p0=0.6,q0=s0.length/(s0.length+s1.length);
+    const W=640,H=280,xs=x=>W*0.34+x*88,ys=y=>H/2-y*80;
+    const dot=(p,cls)=>`<circle cx="${xs(p[0]).toFixed(1)}" cy="${ys(p[1]).toFixed(1)}" r="3.2" fill="var(--${cls})" fill-opacity=".72"/>`;
+    /* marginal mini-bars at right */
+    const bx=W-118,bw=100;
+    const bar=(y,frac,cls,label)=>`
+      <rect x="${bx}" y="${y}" width="${bw}" height="10" rx="2" fill="var(--grid)"/>
+      <rect x="${bx}" y="${y}" width="${bw*frac}" height="10" rx="2" fill="var(--${cls})"/>
+      <text x="${bx}" y="${y-4}" font-size="10.5" fill="var(--muted)">${label}</text>`;
+    $("wc-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Two clusters of real and synthetic queries with marginal share bars">
+      <rect width="${W}" height="${H}" fill="var(--surface)" rx="8"/>
+      ${real0.concat(real1).map(p=>dot(p,"real")).join("")}
+      ${s0.concat(s1).map(p=>dot(p,"synth")).join("")}
+      <text x="${xs(-1.25)}" y="${H-12}" font-size="11.5" fill="var(--muted)" text-anchor="middle">cluster 0 — 60% of demand</text>
+      <text x="${xs(1.3)}" y="${H-12}" font-size="11.5" fill="var(--muted)" text-anchor="middle">cluster 1 — 40%</text>
+      ${bar(36,p0,"real","real share of cluster 0 · 60%")}
+      ${bar(72,q0,"synth","synth share of cluster 0 · "+Math.round(q0*100)+"%")}
+      <text x="${bx}" y="20" font-size="10.5" fill="var(--muted)">cluster marginals</text>
+    </svg>`;
+    $("wc-marg").textContent=(Math.abs(p0-q0)<0.03?"matched":"off");
+    $("wc-marg").style.color=Math.abs(p0-q0)<0.03?css("--good"):css("--bad");
+    $("wc-glob").textContent=fmt(g);
+    $("wc-within").textContent=fmt((w0+w1)/2);
+    $("wc-per").textContent=`c0: ${fmt(w0,2)} · c1: ${fmt(w1,2)}`;
+    
+    st.w=(w0+w1)/2;st.g=g;st.q0=q0;
+  }
+  makePresets($("wc-presets"),[
+    {k:"a1",label:"A1 — stratified cluster"},{k:"a0",label:"A0 — random"},{k:"a2",label:"A2 — distribution-matched"}]);
+  pressGroup($("wc-presets"),k=>{st.mode=k;render()});
+  copyBtn($("wc-copy"),()=>`In the within-cluster C2ST demo (mode ${st.mode.toUpperCase()}): cluster marginals ${Math.abs(0.6-st.q0)<0.03?"matched":"mismatched"}, global C2ST ${fmt(st.g)}, within-cluster C2ST ${fmt(st.w)}. Explain the post-stratification residual Σ p̂c·TV(p(·|c),q(·|c)) and why ragsynth's A1 strategy scored wC2ST 1.000 while A2 scored 0.680 on the toy world.`);
+  render();
+})();
+
+/* ============ D3b · Coverage (BCG floors) ============ */
+(function(){
+  const P=[0.404,0.181,0.122,0.087,0.057,0.067,0.039,0.043];
+  const N0=[169,83,49,71,45,18,27,38]; /* arm A2's real per-cluster counts */
+  const st={alive:P.map(()=>true),floor:1};
+  function render(){
+    const n=N0.map((x,c)=>st.alive[c]?x:0);
+    const cov=P.reduce((s,p,c)=>s+(n[c]>=1?p:0),0);
+    const msc=P.reduce((s,p,c)=>s+(n[c]>=st.floor?p:0),0);
+    const zero=P.map((_,c)=>c).filter(c=>n[c]===0);
+    const below=P.map((_,c)=>c).filter(c=>n[c]>0&&n[c]<st.floor);
+    const W=640,H=225,padB=44,padT=16,bw=(W-40)/8;
+    let bars="";
+    for(let c=0;c<8;c++){
+      const x=26+c*bw,h=(H-padB-padT)*n[c]/180;
+      const dead=n[c]===0,dim=!dead&&n[c]<st.floor;
+      const t=`cluster ${c} — ${Math.round(P[c]*100)}% of demand\nn_synth = ${n[c]}${dead?"  (∅ uncovered)":dim?`  (below floor ${st.floor})`:""}\nclick to ${st.alive[c]?"wipe out":"restore"} this topic`;
+      bars+=`<g data-tip="${t}" data-c="${c}" style="cursor:pointer">
+        <rect x="${x}" y="${padT}" width="${bw-10}" height="${H-padB-padT}" fill="transparent"/>
+        ${dead?`<text x="${x+(bw-10)/2}" y="${H-padB-10}" font-size="17" fill="var(--bad)" text-anchor="middle">∅</text>`
+          :`<rect x="${x}" y="${H-padB-h}" width="${bw-10}" height="${Math.max(h,2)}" rx="3"
+             fill="${dim?"var(--grid)":"var(--synth)"}" ${dim?'stroke="var(--synth)" stroke-dasharray="3 3"':""}/>`}
+        <text x="${x+(bw-10)/2}" y="${H-padB+15}" font-size="11" fill="var(--muted)" text-anchor="middle">c${c}</text>
+        <text x="${x+(bw-10)/2}" y="${H-padB+29}" font-size="9.5" fill="var(--muted)" text-anchor="middle">p̂ ${(P[c]*100).toFixed(0)}%</text>
+      </g>`;
+    }
+    const fy=H-padB-(H-padB-padT)*st.floor/180;
+    $("cov-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Synthetic query count per topic cluster with the coverage floor line">
+      ${bars}
+      <line x1="20" y1="${H-padB}" x2="${W-12}" y2="${H-padB}" stroke="var(--axis)"/>
+      <line x1="20" y1="${fy}" x2="${W-12}" y2="${fy}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="${W-14}" y="${fy-5}" font-size="10.5" fill="var(--accent)" text-anchor="end">floor k = ${st.floor}</text>
+      <text x="26" y="12" font-size="11.5" fill="var(--synth)">synthetic queries per topic (n_c)</text>
+    </svg>`;
+    bindTips($("cov-chart"));
+    $("cov-chart").querySelectorAll("[data-c]").forEach(g=>g.addEventListener("click",()=>{
+      const c=+g.getAttribute("data-c");st.alive[c]=!st.alive[c];render();}));
+    $("cov2-out").textContent=fmt(cov,2);
+    $("cov2-gap").textContent=zero.length?`gap ${fmt(1-cov,2)} · zero clusters [${zero.join(",")}]`:"gap 0 · every topic covered";
+    $("cov2-gap").style.color=zero.length?css("--bad"):css("--good");
+    $("msc-out").textContent=fmt(msc,2);
+    $("msc-note").textContent=below.length?`clusters [${below.join(",")}] have queries but miss the floor`:"all covered clusters meet the floor";
+    $("cov-floor-v").textContent=st.floor;
+    st.cov=cov;st.msc=msc;st.zero=zero;
+  }
+  $("cov-floor").addEventListener("input",e=>{st.floor=+e.target.value;render()});
+  copyBtn($("cov-copy"),()=>`With per-topic synthetic counts ${JSON.stringify(N0.map((x,c)=>st.alive[c]?x:0))} against demand p̂=[0.404,0.181,0.122,0.087,0.057,0.067,0.039,0.043], demand-weighted coverage is ${fmt(st.cov,2)} and minimum semantic coverage at floor k=${st.floor} is ${fmt(st.msc,2)}${st.zero.length?` (zero-query clusters [${st.zero.join(",")}])`:""}. Explain the BCG floor metrics and the "coverage, not averages" dual-view rule, and why no importance weight can compensate for an uncovered cluster.`);
+  render();
+})();
+
+/* ============ D4 · ESS / coverage / post-strat ============ */
+(function(){
+  const P=[0.404,0.181,0.122,0.087,0.057,0.067,0.039,0.043];
+  const M=[0.99,0.97,0.94,0.92,0.86,0.72,0.90,0.95];
+  const ARMS={
+    a0:[63,64,59,60,70,62,59,63], a1:[135,90,62,54,40,44,38,37],
+    a2:[169,83,49,71,45,18,27,38], oracle:[210,93,54,38,27,34,27,17]};
+  const st={n:ARMS.a1.slice()};
+  const sliders=$("ess-sliders");
+  sliders.innerHTML=P.map((_,c)=>`<label class="ctl">c${c}
+    <input type="range" data-c="${c}" min="0" max="220" step="1" value="${st.n[c]}">
+    <span class="val" id="ess-n${c}">${st.n[c]}</span></label>`).join("");
+  sliders.addEventListener("input",e=>{
+    if(e.target.dataset.c===undefined)return;
+    st.n[+e.target.dataset.c]=+e.target.value;
+    document.querySelectorAll("#ess-presets button").forEach(b=>b.setAttribute("aria-pressed","false"));
+    render();
+  });
+  function render(){
+    const tot=st.n.reduce((s,x)=>s+x,0)||1;
+    const q=st.n.map(x=>x/tot);
+    const covered=q.map(x=>x>0);
+    const gap=P.reduce((s,p,c)=>s+(covered[c]?0:p),0);
+    const pcovSum=P.reduce((s,p,c)=>s+(covered[c]?p:0),0)||1e-12;
+    /* per-sample weights: all samples in cluster c share w_c */
+    let sw=0,sw2=0;
+    for(let c=0;c<8;c++){if(!covered[c])continue;
+      const w=(P[c]/pcovSum)/q[c];sw+=w*st.n[c];sw2+=w*w*st.n[c]}
+    const ess=sw*sw/Math.max(sw2,1e-12),essR=ess/tot;
+    /* headline */
+    let ps=0,mass=0,naive=0;
+    for(let c=0;c<8;c++){naive+=st.n[c]*M[c]/tot;
+      if(covered[c]){ps+=P[c]*M[c];mass+=P[c]}}
+    ps/=Math.max(mass,1e-12);
+    const zero=P.map((_,c)=>c).filter(c=>!covered[c]);
+    /* chart: paired bars */
+    const W=640,H=230,padB=40,padT=18,bwG=(W-40)/8;
+    let bars="";
+    for(let c=0;c<8;c++){
+      const x=24+c*bwG,maxv=0.45;
+      const hp=(H-padB-padT)*P[c]/maxv,hq=(H-padB-padT)*q[c]/maxv;
+      const w=covered[c]?(P[c]/pcovSum)/q[c]:0;
+      const t=`cluster ${c}\ndemand p̂=${P[c].toFixed(3)}  synth q=${q[c].toFixed(3)}\nweight w=p̂/q=${covered[c]?w.toFixed(2):"—  (uncovered!)"}\nn_synth=${st.n[c]}  metric=${M[c].toFixed(2)}`;
+      bars+=`<g data-tip="${t}">
+        <rect x="${x}" y="${H-padB-hp}" width="${bwG/2-6}" height="${hp}" rx="2.5" fill="var(--real)"/>
+        <rect x="${x+bwG/2-3}" y="${H-padB-hq}" width="${bwG/2-6}" height="${hq}" rx="2.5" fill="var(--synth)"/>
+        ${covered[c]?"":`<text x="${x+bwG/2-6}" y="${H-padB-8}" font-size="14" fill="var(--bad)" text-anchor="middle">∅</text>`}
+        <text x="${x+bwG/2-6}" y="${H-padB+14}" font-size="11" fill="var(--muted)" text-anchor="middle">c${c}</text>
+        <text x="${x+bwG/2-6}" y="${H-padB+27}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${covered[c]?"w "+w.toFixed(1):"gap"}</text>
+      </g>`;
+    }
+    $("ess-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Demand share versus synthetic share per cluster">
+      ${bars}
+      <line x1="18" y1="${H-padB}" x2="${W-12}" y2="${H-padB}" stroke="var(--axis)"/>
+      <text x="24" y="12" font-size="11.5" fill="var(--real)">demand p̂ (real traffic)</text>
+      <text x="190" y="12" font-size="11.5" fill="var(--synth)">synthetic share q</text>
+    </svg>`;
+    bindTips($("ess-chart"));
+    for(let c=0;c<8;c++)$("ess-n"+c).textContent=st.n[c];
+    $("ess-out").textContent=fmt(essR,2);
+    $("ess-infl").textContent=`variance inflation ×${fmt(1/Math.max(essR,1e-9),2)} — N=${tot}`;
+    $("cov-out").textContent=fmt(1-gap,2);
+    $("gap-out").textContent=zero.length?`gap ${fmt(gap,2)} · zero clusters [${zero.join(",")}]`:"gap 0 · no zero clusters";
+    $("ps-out").textContent=fmt(ps,3);
+    $("ps-naive").textContent=`demand-weighted · naive mean ${fmt(naive,3)}`;
+    st.essR=essR;st.cov=1-gap;st.ps=ps;st.naive=naive;
+  }
+  makePresets($("ess-presets"),[
+    {k:"a1",label:"A1 (real run)"},{k:"a0",label:"A0"},{k:"a2",label:"A2"},{k:"oracle",label:"ORACLE"}]);
+  pressGroup($("ess-presets"),k=>{
+    st.n=ARMS[k].slice();
+    sliders.querySelectorAll("input").forEach((inp,c)=>inp.value=st.n[c]);
+    render();
+  });
+  copyBtn($("ess-copy"),()=>`With synthetic cluster counts [${st.n.join(", ")}] against the toy demand map p̂=[0.404,0.181,0.122,0.087,0.057,0.067,0.039,0.043], I get ESS/N=${fmt(st.essR,2)}, coverage ${fmt(st.cov,2)}, post-stratified headline ${fmt(st.ps,3)} vs naive mean ${fmt(st.naive,3)}. Explain Kong's ESS identity, why variance inflation is n/ESS, and why ragsynth's dual-view rule forbids reporting the naive blended mean alone.`);
+  render();
+})();
+
+/* ============ D5 · tau / tauAP / RBO ============ */
+(function(){
+  const SYS=["exact","noise σ=0.10","noise σ=0.28","noise σ=0.50","rank-48","rank-24"];
+  const anchor=[0,1,2,3,4,5];
+  let synth=[0,1,2,3,4,5];
+  function kendall(a,b){
+    const pos=new Array(a.length);b.forEach((s,i)=>pos[s]=i);
+    let C=0,D=0;
+    for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){
+      (pos[a[i]]<pos[a[j]])?C++:D++;}
+    return {tau:(C-D)/(C+D),C,D};
+  }
+  function tauAP(ref,cand){
+    const rpos=new Array(ref.length);ref.forEach((s,i)=>rpos[s]=i);
+    const n=cand.length;let s=0;
+    for(let i=1;i<n;i++){
+      let c=0;
+      for(let j=0;j<i;j++)if(rpos[cand[j]]<rpos[cand[i]])c++;
+      s+=c/i;
+    }
+    return 2/(n-1)*s-1;
+  }
+  function rbo(a,b,p){
+    const n=a.length;let sum=0,Ad=0;
+    const sa=new Set(),sb=new Set();
+    for(let d=1;d<=n;d++){
+      sa.add(a[d-1]);sb.add(b[d-1]);
+      let inter=0;sa.forEach(x=>{if(sb.has(x))inter++});
+      Ad=inter/d;sum+=Ad*Math.pow(p,d);
+    }
+    return Ad*Math.pow(p,n)+(1-p)/p*sum;
+  }
+  function render(){
+    $("rk-anchor").innerHTML=anchor.map((s,i)=>`<li><span class="pos">${i+1}</span><span class="nm">${SYS[s]}</span></li>`).join("");
+    $("rk-synth").innerHTML=synth.map((s,i)=>`<li class="${s!==anchor[i]?"moved":""}">
+      <span class="pos">${i+1}</span><span class="nm">${SYS[s]}</span>
+      <button data-up="${i}" aria-label="move ${SYS[s]} up">↑</button>
+      <button data-dn="${i}" aria-label="move ${SYS[s]} down">↓</button></li>`).join("");
+    const {tau,C,D}=kendall(anchor,synth),tap=tauAP(anchor,synth),r=rbo(anchor,synth,0.9);
+    $("tau-out").textContent=fmt(tau);
+    $("tau-pairs").textContent=`${C} concordant · ${D} discordant of 15 pairs`;
+    $("tap-out").textContent=fmt(tap);
+    $("rbo-out").textContent=fmt(r);
+    const g1=tau>=0.9,g2=tap>=0.8;
+    $("tau-gate").innerHTML=`<span class="gate ${g1?"pass":"fail"}">${g1?"✓":"✗"} τ ≥ 0.9</span>
+      <span class="gate ${g2?"pass":"fail"}" style="margin-left:6px">${g2?"✓":"✗"} τ_AP ≥ 0.8</span>`;
+    window.__tauState={tau,tap,r,order:synth.map(s=>SYS[s])};
+  }
+  $("rk-synth").addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b)return;
+    document.querySelectorAll("#tau-presets button").forEach(x=>x.setAttribute("aria-pressed","false"));
+    if(b.dataset.up!==undefined){const i=+b.dataset.up;
+      if(i>0)[synth[i-1],synth[i]]=[synth[i],synth[i-1]]}
+    else{const i=+b.dataset.dn;
+      if(i<synth.length-1)[synth[i+1],synth[i]]=[synth[i],synth[i+1]]}
+    render();
+  });
+  makePresets($("tau-presets"),[
+    {k:"id",label:"identical"},{k:"top",label:"swap top pair"},{k:"bot",label:"swap bottom pair"},{k:"rev",label:"reversed"}]);
+  pressGroup($("tau-presets"),k=>{
+    if(k==="id")synth=[0,1,2,3,4,5];
+    if(k==="top")synth=[1,0,2,3,4,5];
+    if(k==="bot")synth=[0,1,2,3,5,4];
+    if(k==="rev")synth=[5,4,3,2,1,0];
+    render();
+  });
+  copyBtn($("tau-copy"),()=>{const s=window.__tauState;
+    return `A synthetic benchmark ranked a 6-system zoo as [${s.order.join(" > ")}] while real anchor queries rank them [exact > noise σ=0.10 > noise σ=0.28 > noise σ=0.50 > rank-48 > rank-24]. That gives Kendall τ=${fmt(s.tau)}, τ_AP=${fmt(s.tap)}, RBO=${fmt(s.r)}. Explain why τ_AP penalizes the top-pair swap more than τ does, and why ragsynth gates at τ≥0.9 AND τ_AP≥0.8 given the τ≈0.82–0.86 literature ceiling.`});
+  render();
+})();
+
+/* ============ D6 · positive controls ============ */
+(function(){
+  const rng=mulberry32(41);
+  const n=100;
+  const noise=[];for(let i=0;i<n;i++)noise.push(gauss(rng)*0.03);
+  const hetero=[];for(let i=0;i<n;i++)hetero.push(0.5+0.5*mulberry32(100+i)());
+  const bootIdx=[];const brng=mulberry32(77);
+  for(let b=0;b<500;b++){const idx=[];for(let i=0;i<n;i++)idx.push(Math.floor(brng()*n));bootIdx.push(idx)}
+  const st={eff:0.05,sens:0.8};
+  function render(){
+    const delta=[];
+    for(let i=0;i<n;i++)delta.push(st.sens*st.eff*hetero[i]+noise[i]);
+    let cnt=0;
+    for(const idx of bootIdx){
+      let m=0;for(const i of idx)m+=delta[i]/n;
+      if(m<=0)cnt++;
+    }
+    const p=cnt/500;
+    /* chart: dot strip of deltas + bootstrap mean distribution */
+    const W=640,H=170,x0=40,x1=W-20;
+    const lo=-0.08,hi=0.16,xs=v=>x0+(clamp(v,lo,hi)-lo)/(hi-lo)*(x1-x0);
+    const dots=delta.map((d,i)=>`<circle cx="${xs(d).toFixed(1)}" cy="${(46+(i%9)*7).toFixed(1)}" r="2.6" fill="var(--synth)" fill-opacity=".6"/>`).join("");
+    /* bootstrap means histogram */
+    const means=bootIdx.map(idx=>{let m=0;for(const i of idx)m+=delta[i]/n;return m});
+    const bins=40,cnts=new Array(bins).fill(0);
+    means.forEach(m=>cnts[clamp(Math.floor((m-lo)/(hi-lo)*bins),0,bins-1)]++);
+    const mx=Math.max(...cnts);
+    const hist=cnts.map((c,i)=>{const bx=x0+i*(x1-x0)/bins;
+      return `<rect x="${bx}" y="${H-24-c/mx*36}" width="${(x1-x0)/bins-1}" height="${c/mx*36}" fill="var(--accent)" fill-opacity=".55"/>`}).join("");
+    $("pc-chart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Per-query score drops and the bootstrap distribution of their mean">
+      <rect width="${W}" height="${H}" fill="var(--surface)" rx="8"/>
+      <line x1="${xs(0)}" y1="30" x2="${xs(0)}" y2="${H-20}" stroke="var(--axis)" stroke-dasharray="4 4"/>
+      <text x="${xs(0)}" y="22" font-size="11" fill="var(--muted)" text-anchor="middle">Δ = 0 (no damage seen)</text>
+      ${dots}${hist}
+      <text x="${x0}" y="${H-8}" font-size="11" fill="var(--muted)">per-query score drop Δᵢ (dots) · bootstrap means (bars)</text>
+    </svg>`;
+    $("pc-out").textContent=p<0.002?"< 0.002":fmt(p);
+    const det=p<0.05;
+    $("pc-verdict").innerHTML=`<span class="gate ${det?"pass":"fail"}">${det?"✓ regression detected":"✗ benchmark is blind"}</span>`;
+    $("pc-effect-v").textContent=st.eff.toFixed(3);
+    $("pc-sens-v").textContent=st.sens.toFixed(2);
+    st.p=p;
+  }
+  $("pc-effect").addEventListener("input",e=>{st.eff=+e.target.value;render()});
+  $("pc-sens").addEventListener("input",e=>{st.sens=+e.target.value;render()});
+  makePresets($("pc-presets"),[
+    {k:"a2",label:"A2 on noise (sensitive)"},{k:"a1",label:"A1 on noise (blind)"},{k:"none",label:"no regression"}]);
+  pressGroup($("pc-presets"),k=>{
+    if(k==="a2"){st.eff=0.05;st.sens=0.9}
+    if(k==="a1"){st.eff=0.05;st.sens=0.02}
+    if(k==="none"){st.eff=0;st.sens=0.8}
+    $("pc-effect").value=st.eff;$("pc-sens").value=st.sens;render();
+  });
+  copyBtn($("pc-copy"),()=>`In a positive-control simulation with true degradation ${st.eff.toFixed(3)} and benchmark sensitivity ${st.sens.toFixed(2)}, the one-sided paired-bootstrap p-value is ${st.p<0.002?"<0.002":fmt(st.p)}. Explain Sakai's bootstrap discriminative-power method and how ragsynth's A1 strategy could pass demand quotas yet score p=1.00 on the embedding-noise control.`);
+  render();
+})();
+
+/* ============ D7 · Vendi ============ */
+(function(){
+  const rng=mulberry32(53);
+  const spreadBase=[];for(let i=0;i<12;i++)spreadBase.push([gauss(rng),gauss(rng)]);
+  const twoBase=[];for(let i=0;i<12;i++){const c=i<6?[-1.5,-0.15]:[1.5,0.3];
+    twoBase.push([c[0]+0.22*gauss(rng),c[1]+0.22*gauss(rng)])}
+  const oneBase=[];for(let i=0;i<12;i++)oneBase.push([0.08*gauss(rng),0.05+0.08*gauss(rng)]);
+  const BASES={spread:spreadBase,two:twoBase,one:oneBase};
+  const st={spread:0.7,mode:"spread"};
+  function jacobiEig(A){
+    const n=A.length,a=A.map(r=>r.slice());
+    for(let sweep=0;sweep<60;sweep++){
+      let off=0;
+      for(let p=0;p<n;p++)for(let q=p+1;q<n;q++)off+=a[p][q]*a[p][q];
+      if(off<1e-14)break;
+      for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){
+        if(Math.abs(a[p][q])<1e-14)continue;
+        const th=0.5*Math.atan2(2*a[p][q],a[q][q]-a[p][p]);
+        const c=Math.cos(th),s=Math.sin(th);
+        for(let k=0;k<n;k++){const akp=a[k][p],akq=a[k][q];
+          a[k][p]=c*akp-s*akq;a[k][q]=s*akp+c*akq;}
+        for(let k=0;k<n;k++){const apk=a[p][k],aqk=a[q][k];
+          a[p][k]=c*apk-s*aqk;a[q][k]=s*apk+c*aqk;}
+      }
+    }
+    return a.map((r,i)=>r[i]);
+  }
+  function render(){
+    const pts=BASES[st.mode].map(p=>[p[0]*st.spread,p[1]*st.spread]);
+    const n=12,K=[];
+    for(let i=0;i<n;i++){K.push([]);
+      for(let j=0;j<n;j++){
+        const d2=(pts[i][0]-pts[j][0])**2+(pts[i][1]-pts[j][1])**2;
+        K[i].push(Math.exp(-d2/0.8));
+      }}
+    const lamAll=jacobiEig(K.map(r=>r.map(x=>x/n)));
+    const lam=lamAll.filter(l=>l>1e-12);
+    let H=0;for(const l of lam)H-=l*Math.log(l);
+    const vendi=Math.exp(H);
+    const sorted=lamAll.map(l=>Math.max(l,0)).sort((a,b)=>b-a);
+    const W=640,Hpx=235,xs=x=>170+x*52,ys=y=>92-(-y)*44; /* scatter box 0..348 */
+    const dots=pts.map(p=>`<circle cx="${clamp(170+p[0]*52,10,338).toFixed(1)}" cy="${clamp(115-p[1]*46,12,Hpx-14).toFixed(1)}" r="5" fill="var(--synth)" fill-opacity=".8"/>`).join("");
+    /* number line (top right) */
+    const lx0=384,lx1=W-22,lx=v=>lx0+(v-1)/11*(lx1-lx0);
+    /* spectrum bars (bottom right) */
+    const bx0=384,bw=(W-22-bx0)/12,by=Hpx-22,bmaxH=88,lmax=Math.max(...sorted,1e-9);
+    const bars=sorted.map((l,i)=>{
+      const h=Math.max(l/lmax*bmaxH,1.2);
+      return `<g data-tip="λ${i+1} = ${l.toFixed(3)} — this mode explains ${(l*100).toFixed(1)}% of the set">
+        <rect x="${(bx0+i*bw+1).toFixed(1)}" y="${(by-h).toFixed(1)}" width="${(bw-3).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--accent)" fill-opacity="${l>1e-6?0.9:0.35}"/>
+      </g>`}).join("");
+    $("vd-chart").innerHTML=`<svg viewBox="0 0 ${W} ${Hpx}" role="img"
+      aria-label="Twelve query points, the Vendi effective count, and the eigenvalue spectrum">
+      <rect width="348" height="${Hpx}" fill="var(--surface)" rx="8"/>
+      ${dots}
+      <text x="14" y="20" font-size="11.5" fill="var(--muted)">12 synthetic queries in embedding space</text>
+      <text x="${lx0}" y="18" font-size="11" fill="var(--muted)">effective number of distinct queries</text>
+      <line x1="${lx0}" y1="42" x2="${lx1}" y2="42" stroke="var(--axis)" stroke-width="1.5"/>
+      ${[1,4,8,12].map(v=>`<line x1="${lx(v)}" y1="37" x2="${lx(v)}" y2="47" stroke="var(--axis)"/>
+        <text x="${lx(v)}" y="62" font-size="11" fill="var(--muted)" text-anchor="middle">${v}</text>`).join("")}
+      <circle cx="${lx(clamp(vendi,1,12))}" cy="42" r="8" fill="var(--accent)"/>
+      <text x="${lx(clamp(vendi,1,12))}" y="28" font-size="13" font-weight="650" fill="var(--accent)" text-anchor="middle">${vendi.toFixed(1)}</text>
+      <text x="${bx0}" y="${by-bmaxH-14}" font-size="11" fill="var(--muted)">eigenvalues of K/n, sorted — each mode's share of the set</text>
+      ${bars}
+      <line x1="${bx0}" y1="${by}" x2="${W-22}" y2="${by}" stroke="var(--axis)"/>
+      <text x="${bx0}" y="${by+14}" font-size="10.5" fill="var(--muted)">λ₁ … λ₁₂ (sum = 1) · Vendi = e^H = number of equally-big bars with the same entropy</text>
+    </svg>`;
+    bindTips($("vd-chart"));
+    $("vd-out").textContent=fmt(vendi,1);
+    $("vd-h").textContent=`H = ${H.toFixed(2)} nats → Vendi = e^H · max 12`;
+    $("vd-spread-v").textContent=st.spread.toFixed(2);
+    st.vendi=vendi;st.H=H;
+  }
+  $("vd-spread").addEventListener("input",e=>{st.spread=+e.target.value;render()});
+  makePresets($("vd-presets"),[
+    {k:"spread",label:"12 distinct"},{k:"two",label:"two themes × 6"},{k:"one",label:"one question × 12"}]);
+  pressGroup($("vd-presets"),k=>{st.mode=k;render()});
+  copyBtn($("vd-copy"),()=>`In the Vendi demo (${st.mode==="spread"?"12 distinct queries":st.mode==="two"?"two themes of six near-duplicates":"one question duplicated 12 times"}, spread ${st.spread.toFixed(2)}), the eigenvalue spectrum of K/n gives entropy H=${st.H.toFixed(2)} nats and Vendi=e^H=${fmt(st.vendi,1)}. Explain why the eigenvalues of the similarity matrix act as latent modes, why they sum to 1, and why exp(entropy) counts effective modes (perplexity).`);
+  render();
+})();
+</script>
