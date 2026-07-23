@@ -29,6 +29,29 @@ config): `metrics.json` (deterministic — same seed, same bytes), `report.md`
 benchmark), `figures/`, and `artifacts/` (sha256-manifested partition and
 demand-map artifacts).
 
+## v2 benchmarks quickstart
+
+Real-benchmark validation (FiQA-2018, NFCorpus, LegalBench-RAG) against
+production-scale text, embeddings, and cross-family LLMs — `specs/v2/01-real-benchmarks.md`
+is the design source of truth; PLAN.md D32-D41 records the decisions.
+
+```bash
+cp .env.example .env                              # fill in GEMINI_API_KEY
+uv sync --extra gemini --extra chromadb            # gemini embedder + ChromaDB cache
+uv run python scripts/fetch_benchmarks.py fiqa     # or nfcorpus / legalbench_rag
+uv run python scripts/convert_benchmark.py fiqa    # -> data/benchmarks/fiqa/*.jsonl
+uv run ragsynth run --config configs/v2_fiqa.yaml  # record run: embeds once (cached_chroma),
+                                                    # calls the live LLM endpoints once (cached
+                                                    # transcripts); replay run (offline, byte-
+                                                    # identical metrics.json) lands in the second
+                                                    # half of this work.
+```
+
+Embeddings go through `cached_chroma` (gemini-embedding-2, 768-dim, keyed by
+`sha256(embedder_id)`) so a dataset is only ever embedded once. Swap
+`fiqa` for `nfcorpus` / `legalbench_rag` throughout. Outputs land under
+`experiments/v2_<name>/`.
+
 ## The four arms
 
 Every run can validate itself against three baselines plus the ceiling
