@@ -186,9 +186,28 @@ def read_beir_qrels_dir(qrels_dir: Path) -> dict[tuple[str, str], int]:
     score per ``(query-id, corpus-id)`` pair regardless of which file it
     was seen in (spec01 §5: "concatenated ... dedup by (query,doc) keeping
     max score").
+
+    Raises:
+        FileNotFoundError: If ``qrels_dir`` does not exist or contains no
+            ``*.tsv`` files -- a benchmark without qrels would otherwise
+            convert "successfully" into a silent 0-byte
+            ``anchor_qrels.jsonl`` (fail-loudly, SPEC §13).
     """
+    if not qrels_dir.is_dir():
+        raise FileNotFoundError(
+            f"qrels directory not found: {qrels_dir} -- expected the BEIR layout "
+            "<raw_dir>/qrels/*.tsv (header row query-id\\tcorpus-id\\tscore); "
+            "was the archive fetched with scripts/fetch_benchmarks.py?"
+        )
+    tsv_paths = sorted(qrels_dir.glob("*.tsv"))
+    if not tsv_paths:
+        raise FileNotFoundError(
+            f"no *.tsv qrel split files under {qrels_dir} -- expected at least one "
+            "BEIR split file (e.g. train.tsv/dev.tsv/test.tsv); refusing to emit "
+            "an empty anchor_qrels.jsonl"
+        )
     merged: dict[tuple[str, str], int] = {}
-    for tsv_path in sorted(qrels_dir.glob("*.tsv")):
+    for tsv_path in tsv_paths:
         lines = [ln for ln in tsv_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
         for line in lines[1:]:  # skip the header row
             qid, cid, score = line.split("\t")
@@ -385,12 +404,52 @@ def write_benchmarks_readme(
     return readme_path
 
 
+def extract_archive(zip_path: Path, raw_dir: Path, *, source_sha256: str) -> Path:
+    """Extract a benchmark zip into ``raw_dir`` and write the ``SOURCE_SHA256`` marker.
+
+    Pure filesystem logic (no network), factored out of
+    :func:`download_benchmark` so it is unit-testable against hand-built
+    zips. BEIR release zips wrap everything in a single ``<name>/``
+    directory -- when the archive extracts to exactly one top-level
+    directory and nothing else, that wrapper is flattened away so
+    ``raw_dir`` holds ``corpus.jsonl``/``queries.jsonl``/``qrels/``
+    directly; a flat archive is moved as-is. Any pre-existing ``raw_dir``
+    is replaced wholesale (no stale files from an earlier fetch survive).
+
+    Args:
+        zip_path: The downloaded archive.
+        raw_dir: Destination directory (parents created; replaced if present).
+        source_sha256: Hex sha256 of the archive, written to
+            ``raw_dir/SOURCE_SHA256`` for :func:`resolve_source_version`.
+
+    Returns:
+        ``raw_dir``.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(tmp_path)
+        entries = list(tmp_path.iterdir())
+        single_wrapper = len(entries) == 1 and entries[0].is_dir()
+        source = entries[0] if single_wrapper else tmp_path
+        if raw_dir.exists():
+            shutil.rmtree(raw_dir)
+        raw_dir.parent.mkdir(parents=True, exist_ok=True)
+        if single_wrapper:
+            shutil.move(str(source), str(raw_dir))
+        else:
+            shutil.copytree(str(source), str(raw_dir))
+
+    (raw_dir / _SOURCE_MARKER_FILENAME).write_text(source_sha256 + "\n", encoding="utf-8")
+    return raw_dir
+
+
 def download_benchmark(name: str, out_dir: Path) -> Path:
     """Download, extract, and record provenance for one BEIR benchmark zip (D32).
 
-    Not unit-tested (network I/O) -- see this module's tests for the pure
-    helpers this delegates to (:func:`sha256_of_file`,
-    :func:`write_benchmarks_readme`).
+    Only the ``urllib`` download itself is untested (network I/O); every
+    other piece is a tested importable helper (:func:`sha256_of_file`,
+    :func:`extract_archive`, :func:`write_benchmarks_readme`).
 
     Args:
         name: Dataset name; must be a key of :data:`BENCHMARK_URLS`.
@@ -416,18 +475,7 @@ def download_benchmark(name: str, out_dir: Path) -> Path:
         shutil.copyfileobj(response, fh)
 
     digest = sha256_of_file(zip_path)
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(tmp_path)
-        extracted_dirs = [p for p in tmp_path.iterdir() if p.is_dir()]
-        source = extracted_dirs[0] if len(extracted_dirs) == 1 else tmp_path
-        if raw_dir.exists():
-            shutil.rmtree(raw_dir)
-        shutil.move(str(source), str(raw_dir))
-
-    (raw_dir / _SOURCE_MARKER_FILENAME).write_text(digest + "\n", encoding="utf-8")
+    extract_archive(zip_path, raw_dir, source_sha256=digest)
     write_benchmarks_readme(Path(out_dir), name, url, digest, LICENSE_NOTES[name])
     logger.info(f"fetched {name}: {url} sha256={digest} -> {raw_dir}")
     return raw_dir

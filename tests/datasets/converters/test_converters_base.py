@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import zipfile
 
 import pytest
 
@@ -11,6 +12,7 @@ from ragsynth.datasets.converters.base import (
     ConversionManifest,
     binarize_qrels,
     build_chunks,
+    extract_archive,
     read_beir_corpus,
     read_beir_qrels_dir,
     read_beir_queries,
@@ -143,6 +145,102 @@ def test_read_beir_qrels_dir_dedup_keeps_true_max_regardless_of_file_processing_
     )
     merged = read_beir_qrels_dir(qrels_dir)
     assert merged == {("q4", "d8"): 2}
+
+
+def test_read_beir_qrels_dir_missing_dir_raises_actionable_error(tmp_path) -> None:
+    """Fail loudly, not with an empty dict: a missing qrels/ would otherwise yield a
+
+    silent 0-byte anchor_qrels.jsonl and n_qrel_entries=0.
+    """
+    missing = tmp_path / "qrels"
+    with pytest.raises(FileNotFoundError, match="qrels"):
+        read_beir_qrels_dir(missing)
+    with pytest.raises(FileNotFoundError, match=str(missing)):
+        read_beir_qrels_dir(missing)
+
+
+def test_read_beir_qrels_dir_empty_dir_raises_actionable_error(tmp_path) -> None:
+    """A qrels/ dir with no *.tsv files is just as silent-empty as a missing one."""
+    qrels_dir = tmp_path / "qrels"
+    qrels_dir.mkdir()
+    (qrels_dir / "notes.txt").write_text("not a split file", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match=r"\.tsv"):
+        read_beir_qrels_dir(qrels_dir)
+    with pytest.raises(FileNotFoundError, match=str(qrels_dir)):
+        read_beir_qrels_dir(qrels_dir)
+
+
+def _make_zip(zip_path, entries: dict[str, str]) -> None:
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        for arcname, content in entries.items():
+            archive.writestr(arcname, content)
+
+
+def test_extract_archive_flattens_single_wrapping_directory(tmp_path) -> None:
+    """BEIR zips wrap everything in a <name>/ dir; raw/ must hold the files directly."""
+    zip_path = tmp_path / "fiqa.zip"
+    _make_zip(
+        zip_path,
+        {
+            "fiqa/corpus.jsonl": '{"_id": "d1", "text": "x"}\n',
+            "fiqa/queries.jsonl": '{"_id": "q1", "text": "y"}\n',
+            "fiqa/qrels/test.tsv": "query-id\tcorpus-id\tscore\nq1\td1\t1\n",
+        },
+    )
+    raw_dir = tmp_path / "fiqa" / "raw"
+
+    result = extract_archive(zip_path, raw_dir, source_sha256="cafe01")
+
+    assert result == raw_dir
+    assert (raw_dir / "corpus.jsonl").read_text(encoding="utf-8") == '{"_id": "d1", "text": "x"}\n'
+    assert (raw_dir / "qrels" / "test.tsv").is_file()
+    assert (raw_dir / "SOURCE_SHA256").read_text(encoding="utf-8") == "cafe01\n"
+
+
+def test_extract_archive_flat_layout_kept_as_is(tmp_path) -> None:
+    """A zip with files at its root extracts straight into raw/ (no flattening)."""
+    zip_path = tmp_path / "flat.zip"
+    _make_zip(
+        zip_path,
+        {
+            "corpus.jsonl": '{"_id": "d1", "text": "x"}\n',
+            "queries.jsonl": '{"_id": "q1", "text": "y"}\n',
+            "qrels/test.tsv": "query-id\tcorpus-id\tscore\nq1\td1\t1\n",
+        },
+    )
+    raw_dir = tmp_path / "out" / "raw"
+
+    extract_archive(zip_path, raw_dir, source_sha256="beef02")
+
+    assert (raw_dir / "corpus.jsonl").is_file()
+    assert (raw_dir / "queries.jsonl").is_file()
+    assert (raw_dir / "qrels" / "test.tsv").is_file()
+    assert (raw_dir / "SOURCE_SHA256").read_text(encoding="utf-8") == "beef02\n"
+
+
+def test_extract_archive_replaces_existing_raw_dir(tmp_path) -> None:
+    """Re-fetching must not leave stale files from a previous extraction behind."""
+    zip_path = tmp_path / "fiqa.zip"
+    _make_zip(zip_path, {"fiqa/corpus.jsonl": "new\n"})
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    (raw_dir / "stale.jsonl").write_text("old\n", encoding="utf-8")
+
+    extract_archive(zip_path, raw_dir, source_sha256="feed03")
+
+    assert (raw_dir / "corpus.jsonl").read_text(encoding="utf-8") == "new\n"
+    assert not (raw_dir / "stale.jsonl").exists()
+
+
+def test_extract_archive_marker_makes_source_version_resolvable(tmp_path) -> None:
+    """The written SOURCE_SHA256 marker is exactly what resolve_source_version reads."""
+    zip_path = tmp_path / "nfcorpus.zip"
+    _make_zip(zip_path, {"nfcorpus/corpus.jsonl": "{}\n"})
+    raw_dir = tmp_path / "raw"
+
+    extract_archive(zip_path, raw_dir, source_sha256="abc123")
+
+    assert resolve_source_version(raw_dir) == "sha256:abc123"
 
 
 def test_build_chunks_concatenates_title_and_text_only_when_title_nonempty() -> None:

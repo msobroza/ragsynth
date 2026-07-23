@@ -114,6 +114,21 @@ def test_qrels_are_rekeyed_to_the_content_hash_chunk_id_the_loader_will_produce(
     assert qrels["q1"][expected_chunk.chunk_id] == 1
 
 
+def test_convert_raw_dir_without_qrels_fails_loudly(tmp_path: Path) -> None:
+    """A raw dir missing qrels/ must error, never emit an empty anchor_qrels.jsonl."""
+    import shutil
+
+    import pytest
+
+    broken_raw = tmp_path / "raw"
+    broken_raw.mkdir()
+    shutil.copy(FIXTURE_RAW / "corpus.jsonl", broken_raw / "corpus.jsonl")
+    shutil.copy(FIXTURE_RAW / "queries.jsonl", broken_raw / "queries.jsonl")
+
+    with pytest.raises(FileNotFoundError, match="qrels"):
+        fiqa.convert(broken_raw, tmp_path / "out")
+
+
 def test_loader_round_trip_every_qrel_chunk_id_resolves_in_loaded_chunks(tmp_path: Path) -> None:
     """End-to-end proof: run the REAL jsonl_loader over the converter's output."""
     fiqa.convert(FIXTURE_RAW, tmp_path)
