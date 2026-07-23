@@ -114,6 +114,9 @@ ignore = [
     "B008",    # typer.Option in defaults is the typer API
     "UP007",   # typer needs Optional[X] over X | None on some versions
 ]
+"scripts/**" = [
+    "INP001",  # argument-parsing shells, not a package (spec01 D32)
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
