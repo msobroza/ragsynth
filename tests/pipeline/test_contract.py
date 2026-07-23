@@ -196,7 +196,7 @@ def test_adapter_registries_resolve_and_mocks_satisfy_protocols(
     contract_resources: Resources,
 ) -> None:
     for registry, expected in (
-        (CHAT_MODELS, {"mock", "openai_compatible", "toy_chat"}),
+        (CHAT_MODELS, {"mock", "openai_compatible", "toy_chat", "cached"}),
         (EMBEDDERS, {"mock", "hashed_ngram", "sentence_transformer", "passthrough"}),
         (RETRIEVERS, {"dense_inmemory", "bm25s"}),
         (JUDGES, {"mock", "llm", "toy_judge"}),

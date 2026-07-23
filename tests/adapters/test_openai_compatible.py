@@ -110,3 +110,44 @@ def test_from_config_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
         original.to_config(), bundle, np.random.default_rng(0)
     )
     assert rebuilt.to_config() == original.to_config()
+
+
+def test_env_placeholder_in_base_url_resolves_at_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setenv("RAGSYNTH_LLM_BASE_URL", "http://gateway.internal:9000/v1")
+    chat = OpenAICompatibleChat(base_url="${RAGSYNTH_LLM_BASE_URL}", model="m")
+    assert chat.base_url == "http://gateway.internal:9000/v1"
+
+
+def test_env_placeholder_missing_var_raises_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAGSYNTH_LLM_BASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="RAGSYNTH_LLM_BASE_URL"):
+        OpenAICompatibleChat(base_url="${RAGSYNTH_LLM_BASE_URL}", model="m")
+
+
+def test_to_config_preserves_unresolved_env_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RAGSYNTH_LLM_BASE_URL", "http://gateway.internal:9000/v1")
+    chat = OpenAICompatibleChat(base_url="${RAGSYNTH_LLM_BASE_URL}", model="m")
+    assert chat.to_config()["base_url"] == "${RAGSYNTH_LLM_BASE_URL}"
+
+
+def test_env_placeholder_round_trip_preserves_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import numpy as np
+
+    from ragsynth.datasets.base import DatasetBundle
+
+    monkeypatch.setenv("RAGSYNTH_LLM_BASE_URL", "http://gateway.internal:9000/v1")
+    bundle = DatasetBundle(chunks=(), queries_train=(), queries_anchor=(), queries_oracle=())
+    original = OpenAICompatibleChat(base_url="${RAGSYNTH_LLM_BASE_URL}", model="m")
+    rebuilt = OpenAICompatibleChat.from_config(
+        original.to_config(), bundle, np.random.default_rng(0)
+    )
+    assert rebuilt.to_config()["base_url"] == "${RAGSYNTH_LLM_BASE_URL}"
