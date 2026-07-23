@@ -39,6 +39,7 @@ raw tree are byte-identical (the manifest sha256s prove it).
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,6 +52,8 @@ from ragsynth.datasets.converters.base import (
     write_manifest,
 )
 from ragsynth.domain import Chunk
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -222,9 +225,11 @@ def convert(raw_dir: Path, out_dir: Path) -> ConversionManifest:
                     {"text": chunk.text, "doc_id": chunk.doc_id, "metadata": dict(chunk.metadata)}
                 )
 
+    known_docs = {doc_id for doc_id, _, _ in chunk_offsets.values()}
     query_rows: list[dict[str, object]] = []
     query_order: list[str] = []
     spans: dict[str, list[tuple[str, int, int]]] = {}
+    unmatched_paths: dict[str, set[str]] = {}
     for subcorpus in subcorpora:
         for i, entry in enumerate(_read_benchmark(benchmarks_root / f"{subcorpus}.json")):
             query_id = f"{subcorpus}_{i:04d}"
@@ -240,6 +245,15 @@ def convert(raw_dir: Path, out_dir: Path) -> ConversionManifest:
                 (str(s["file_path"]), int(s["span"][0]), int(s["span"][1]))
                 for s in entry["snippets"]
             ]
+            for s_doc, _, _ in spans[query_id]:
+                if s_doc not in known_docs:
+                    unmatched_paths.setdefault(subcorpus, set()).add(s_doc)
+    for subcorpus in sorted(unmatched_paths):
+        paths = sorted(unmatched_paths[subcorpus])
+        logger.warning(
+            f"legalbench_rag[{subcorpus}]: {len(paths)} snippet file_path(s) match no "
+            f"converted document and contribute no gold chunks: {paths}"
+        )
 
     qrels_by_query = spans_to_qrels(spans, chunk_offsets)
     qrel_rows = [

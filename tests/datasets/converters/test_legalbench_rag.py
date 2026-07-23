@@ -12,7 +12,11 @@ branch of D35.
 
 import hashlib
 import json
+import logging
+import shutil
 from pathlib import Path
+
+import pytest
 
 from ragsynth.datasets.converters import legalbench_rag
 from ragsynth.datasets.converters.base import LICENSE_NOTES
@@ -305,3 +309,38 @@ def test_convert_chunk_and_query_carry_subcorpus_metadata(tmp_path: Path) -> Non
     ]
     assert {r["metadata"]["subcorpus"] for r in chunk_rows} == {"contractnli", "cuad"}
     assert {r["metadata"]["subcorpus"] for r in query_rows} == {"contractnli", "cuad"}
+
+
+def test_unmatched_snippet_path_warns_and_leaves_output_unchanged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A snippet whose file_path matches no converted doc warns; outputs stay byte-identical."""
+    baseline_out = tmp_path / "baseline"
+    legalbench_rag.convert(FIXTURE_RAW, baseline_out)
+
+    mutated_raw = tmp_path / "raw"
+    shutil.copytree(FIXTURE_RAW, mutated_raw)
+    bench = mutated_raw / "benchmarks" / "cuad.json"
+    entries = json.loads(bench.read_text("utf-8"))
+    entries[0]["snippets"].append({"file_path": "cuad/ghost.txt", "span": [0, 50]})
+    bench.write_text(json.dumps(entries), "utf-8")
+
+    mutated_out = tmp_path / "mutated"
+    with caplog.at_level(logging.WARNING, logger="ragsynth.datasets.converters.legalbench_rag"):
+        legalbench_rag.convert(mutated_raw, mutated_out)
+
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("cuad" in m and "cuad/ghost.txt" in m and "1" in m for m in messages), (
+        f"expected an unmatched-path warning naming cuad/ghost.txt, got {messages!r}"
+    )
+
+    for fname in ("chunks.jsonl", "queries.jsonl", "anchor_qrels.jsonl"):
+        assert (mutated_out / fname).read_bytes() == (baseline_out / fname).read_bytes()
+
+
+def test_clean_fixture_conversion_emits_no_unmatched_path_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="ragsynth.datasets.converters.legalbench_rag"):
+        legalbench_rag.convert(FIXTURE_RAW, tmp_path / "out")
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
