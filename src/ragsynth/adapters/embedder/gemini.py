@@ -85,7 +85,13 @@ class GeminiEmbedder:
         return SimpleNamespace(output_dimensionality=self.output_dimensionality)
 
     def encode(self, texts: Sequence[str]) -> NDArray[np.float64]:
-        """Return an ``(len(texts), output_dimensionality)`` matrix of unit-norm rows."""
+        """Return an ``(len(texts), output_dimensionality)`` matrix of unit-norm rows.
+
+        Raises:
+            RuntimeError: If the API returns a different number of embeddings
+                than the batch requested (e.g. per-item filtering) -- rows must
+                never be left uninitialized silently.
+        """
         n = len(texts)
         if n == 0:
             return np.zeros((0, self.output_dimensionality), dtype=np.float64)
@@ -98,7 +104,14 @@ class GeminiEmbedder:
                 contents=batch,
                 config=config,
             )
-            for offset, embedding in enumerate(response.embeddings):
+            embeddings = response.embeddings
+            if len(embeddings) != len(batch):
+                raise RuntimeError(
+                    f"Gemini embed_content batch at offset {start}: "
+                    f"expected {len(batch)} embeddings, got {len(embeddings)} "
+                    f"(the API dropped or filtered items; inputs and outputs mismatch)"
+                )
+            for offset, embedding in enumerate(embeddings):
                 rows[start + offset] = np.asarray(embedding.values, dtype=np.float64)
         norms = np.maximum(np.linalg.norm(rows, axis=1, keepdims=True), _NORM_EPS)
         return np.asarray(rows / norms, dtype=np.float64)

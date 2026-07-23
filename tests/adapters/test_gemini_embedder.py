@@ -94,6 +94,27 @@ def test_input_order_preserved_across_batches() -> None:
     assert [len(call["contents"]) for call in client.models.calls] == [2, 2, 1]
 
 
+def test_short_api_response_raises_actionable_error() -> None:
+    """A batch answered with fewer embeddings than requested must fail loudly.
+
+    The API can silently drop items (e.g. per-item filtering); without the
+    length check the missing rows would be uninitialized memory.
+    """
+
+    @dataclass
+    class _ShortModels(_StubModels):
+        def embed_content(self, *, model: str, contents: list[str], config: Any) -> _StubResponse:
+            response = super().embed_content(model=model, contents=contents, config=config)
+            if len(self.calls) == 2:  # drop one embedding from the second batch only
+                return _StubResponse(response.embeddings[:-1])
+            return response
+
+    client = _StubClient(models=_ShortModels())
+    emb = GeminiEmbedder(output_dimensionality=DIM, batch_size=2, client=client)
+    with pytest.raises(RuntimeError, match=r"batch at offset 2.*expected 2.*got 1"):
+        emb.encode(["a", "b", "c", "d"])
+
+
 def test_empty_input_returns_empty_matrix_with_output_dim() -> None:
     emb = _embedder()
     out = emb.encode([])
