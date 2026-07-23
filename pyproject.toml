@@ -42,6 +42,9 @@ bm25 = [
 st = [
     "sentence-transformers>=3.0",
 ]
+gemini = [
+    "google-genai>=1.0",
+]
 
 [project.scripts]
 ragsynth = "ragsynth.cli:app"
@@ -133,6 +136,8 @@ module = [
     "textgrad.*",
     "bm25s.*",
     "sentence_transformers.*",
+    "google.*",
+    "google.genai.*",
 ]
 ignore_missing_imports = true
 
