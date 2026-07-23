@@ -38,7 +38,7 @@ is the design source of truth; PLAN.md D32-D41 records the decisions.
 ```bash
 cp .env.example .env                              # fill in GEMINI_API_KEY
 uv sync --extra gemini --extra chromadb            # gemini embedder + ChromaDB cache
-uv run python scripts/fetch_benchmarks.py fiqa     # or nfcorpus / legalbench_rag
+uv run python scripts/fetch_benchmarks.py fiqa     # or nfcorpus
 uv run python scripts/convert_benchmark.py fiqa    # -> data/benchmarks/fiqa/*.jsonl
 uv run ragsynth run --config configs/v2_fiqa.yaml  # record run: embeds once (cached_chroma),
                                                     # calls the live LLM endpoints once (cached
@@ -48,9 +48,11 @@ uv run ragsynth run --config configs/v2_fiqa.yaml  # record run: embeds once (ca
 ```
 
 Embeddings go through `cached_chroma` (gemini-embedding-2, 768-dim, keyed by
-`sha256(embedder_id)`) so a dataset is only ever embedded once. Swap
-`fiqa` for `nfcorpus` / `legalbench_rag` throughout. Outputs land under
-`experiments/v2_<name>/`.
+`sha256(embedder_id)`) so a dataset is only ever embedded once.
+`convert_benchmark.py` supports all three datasets, but LegalBench-RAG's
+fetch entry is deferred to the second half — place its raw archive under
+`data/benchmarks/legalbench_rag/raw/` manually until then. Outputs land
+under `experiments/v2_<name>/`.
 
 ## The four arms
 
@@ -72,6 +74,8 @@ test suite and both bundled configs run air-gapped. Real deployments point
 | extra | install | provides |
 |---|---|---|
 | `st` | `uv sync --extra st` | `sentence_transformer` embedder (real semantic quality; default is the pure-numpy `hashed_ngram`) |
+| `gemini` | `uv sync --extra gemini` | `gemini` embedder (google-genai; the v2 benchmark default, D39-A) |
+| `chromadb` | `uv sync --extra chromadb` | `cached_chroma` embedder cache (embed each dataset once, replay from ChromaDB) |
 | `bm25` | `uv sync --extra bm25` | `bm25s` retriever (text-query path) |
 | `optimization` | `uv sync --extra optimization` | dspy/textgrad backends for the v2 prompt-optimization loop (v1 ships the contract + `NoOpOptimizer`) |
 | `notebooks` | `uv sync --extra notebooks` | jupyterlab + seaborn for `experiments/*/analysis.ipynb` |
