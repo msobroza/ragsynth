@@ -219,6 +219,34 @@ def test_validator_audit_export_under_schema_1_raises(tiny_config: dict[str, Any
         validate_config(tiny_config)
 
 
+def test_cached_generator_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    """Transcript replay is a schema-2 trigger (README canonical list): bare wrapper."""
+    tiny_config["resources"]["generator_llm"] = _cached("Qwen/Qwen2.5-7B-Instruct")
+    with pytest.raises(ValueError, match=r"generator_llm\.type: cached.*schema_version 2"):
+        validate_config(tiny_config)
+
+
+def test_cached_judge_chat_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    """The llm judge's nested params.chat `cached` block is gated identically."""
+    tiny_config["resources"]["judge_llm"] = {
+        "type": "llm",
+        "params": {"chat": _cached("meta-llama/Llama-3.1-8B-Instruct")},
+    }
+    pattern = r"judge_llm\.params\.chat\.type: cached.*schema_version 2"
+    with pytest.raises(ValueError, match=pattern):
+        validate_config(tiny_config)
+
+
+def test_cached_judge_llm_top_level_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    """The spec-shorthand `judge_llm.type: cached` gates BEFORE the registry lookup
+
+    (`cached` is a CHAT_MODELS key, not a RelevanceJudge, so without the gate this
+    shape would die later with an unhelpful RegistryError)."""
+    tiny_config["resources"]["judge_llm"] = _cached("meta-llama/Llama-3.1-8B-Instruct")
+    with pytest.raises(ValueError, match=r"judge_llm\.type: cached.*schema_version 2"):
+        validate_config(tiny_config)
+
+
 def test_schema_2_features_accepted_and_validated(tiny_config: dict[str, Any]) -> None:
     tiny_config["ragsynth"]["schema_version"] = 2
     tiny_config["resources"]["dataset"]["params"] = {"split_stratify_by": "subcorpus"}

@@ -176,14 +176,21 @@ def _validate_audit_export(value: Any) -> None:
         )
 
 
+def _validate_noop(_value: Any) -> None:
+    """No value validation beyond gating: the adapter's ``from_config`` owns it."""
+
+
 def _collect_schema2_features(
     config: dict[str, Any],
 ) -> list[tuple[str, Any, Any]]:
     """Return ``[(dotted_name, value, validator), ...]`` for schema-2 features present.
 
-    Covers this task's owned trigger params (spec01 §8): ``split_stratify_by``,
-    ``partition.ladder``, and ``validator.audit_export``. Their *runtime* logic
-    is out of scope here -- ACCEPT/VALIDATE/STORE/ROUND-TRIP only.
+    Covers spec01 §8's trigger set (v2 README "canonical trigger list"):
+    ``split_stratify_by``, ``partition.ladder``, ``validator.audit_export``, and
+    ``cached`` transcript replay -- as the bare ``generator_llm``/``judge_llm``
+    wrapper AND as the llm judge's nested ``params.chat`` block. Ladder and
+    audit_export *runtime* logic is out of scope here (ACCEPT/VALIDATE/STORE/
+    ROUND-TRIP only).
     """
     resources = config.get("resources") or {}
     found: list[tuple[str, Any, Any]] = []
@@ -199,6 +206,13 @@ def _collect_schema2_features(
     partition = resources.get("partition") or {}
     if "ladder" in partition:
         found.append(("partition.ladder", partition["ladder"], _validate_ladder))
+    for llm_key in ("generator_llm", "judge_llm"):
+        block = resources.get(llm_key) or {}
+        if block.get("type") == "cached":
+            found.append((f"{llm_key}.type: cached", block, _validate_noop))
+        judge_chat = (block.get("params") or {}).get("chat") or {}
+        if isinstance(judge_chat, dict) and judge_chat.get("type") == "cached":
+            found.append((f"{llm_key}.params.chat.type: cached", judge_chat, _validate_noop))
     for step in config.get("pipeline") or []:
         params = step.get("params") or {}
         if step.get("type") == "validator" and "audit_export" in params:
