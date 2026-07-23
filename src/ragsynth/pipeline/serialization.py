@@ -85,16 +85,146 @@ def config_hash(config: dict[str, Any]) -> str:
     return sha256_hex(canonical_json(config).encode("utf-8"))
 
 
+_MAX_CACHED_UNWRAP = 8  # defensive cap against a pathological/cyclic backend chain
+
+
+def _unwrap_cached(block: dict[str, Any]) -> dict[str, Any]:
+    """See through nested ``cached`` transcript wrappers to the backing adapter.
+
+    A ``cached`` block carries its real adapter under ``params.backend`` (D40);
+    the same-family check (SPEC §6.4) must compare the *backend* model names, not
+    the wrapper, so this peels wrappers until it reaches a non-``cached`` block
+    (D39). Returns ``block`` unchanged when it is not a ``cached`` wrapper.
+    """
+    seen = 0
+    while isinstance(block, dict) and block.get("type") == "cached" and seen < _MAX_CACHED_UNWRAP:
+        backend = (block.get("params") or {}).get("backend")
+        if not isinstance(backend, dict):
+            break
+        block = backend
+        seen += 1
+    return block
+
+
 def _llm_family(block: dict[str, Any]) -> str:
     """Best-effort model-family identity of an adapter config block.
 
     The Froebe et al. (SIGIR 2025) finding is about model FAMILIES, so this
     compares the leading name token: ``gpt-4o`` and ``gpt-4o-mini`` are the
-    same family; ``llama-70b`` and ``llama-8b`` are the same family.
+    same family; ``llama-70b`` and ``llama-8b`` are the same family. A ``cached``
+    wrapper is unwrapped first so the backend's model name is what's compared.
     """
+    block = _unwrap_cached(block)
     params = block.get("params") or {}
     model = str(params.get("model", block.get("type", "")))
     return model.lower().split("-")[0].split("/")[-1]
+
+
+# Schema-2 feature values arrive straight from YAML, so every validator below
+# raises ValueError (never TypeError) for BOTH wrong-type and out-of-range
+# values -- a single, uniform config-fault contract (see validate_config).
+
+
+def _validate_split_stratify_by(value: Any) -> None:
+    if not isinstance(value, str) or not value:
+        raise ValueError(
+            f"dataset.params.split_stratify_by must be a non-empty str naming a query "
+            f"metadata key, got {value!r}"
+        )
+
+
+def _is_positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validate_ladder(value: Any) -> None:
+    if not isinstance(value, dict):
+        # Config faults are ValueError, never TypeError (uniform contract).
+        raise ValueError(f"partition.ladder must be a mapping, got {value!r}")  # noqa: TRY004
+    candidates = value.get("candidates")
+    valid_candidates = (
+        isinstance(candidates, list) and bool(candidates) and all(map(_is_positive_int, candidates))
+    )
+    if not valid_candidates:
+        raise ValueError(
+            f"partition.ladder.candidates must be a non-empty list of positive ints (the C "
+            f"ladder, e.g. [8, 6, 4, 2]), got {candidates!r}"
+        )
+    if not _is_positive_int(value.get("min_per_side")):
+        raise ValueError(
+            f"partition.ladder.min_per_side must be a positive int, "
+            f"got {value.get('min_per_side')!r}"
+        )
+
+
+def _validate_audit_export(value: Any) -> None:
+    if not isinstance(value, dict):
+        # Config faults are ValueError, never TypeError (uniform contract).
+        raise ValueError(f"validator.audit_export must be a mapping, got {value!r}")  # noqa: TRY004
+    if not _is_positive_int(value.get("n")):
+        raise ValueError(
+            f"validator.audit_export.n must be a positive int (rows to export), "
+            f"got {value.get('n')!r}"
+        )
+    arm = value.get("arm")
+    if not isinstance(arm, str) or not arm:
+        raise ValueError(f"validator.audit_export.arm must be a non-empty str, got {arm!r}")
+    stratify = value.get("stratify", [])
+    if not isinstance(stratify, list) or not all(isinstance(s, str) for s in stratify):
+        raise ValueError(
+            f"validator.audit_export.stratify must be a list of str metadata keys, got {stratify!r}"
+        )
+
+
+def _collect_schema2_features(
+    config: dict[str, Any],
+) -> list[tuple[str, Any, Any]]:
+    """Return ``[(dotted_name, value, validator), ...]`` for schema-2 features present.
+
+    Covers this task's owned trigger params (spec01 §8): ``split_stratify_by``,
+    ``partition.ladder``, and ``validator.audit_export``. Their *runtime* logic
+    is out of scope here -- ACCEPT/VALIDATE/STORE/ROUND-TRIP only.
+    """
+    resources = config.get("resources") or {}
+    found: list[tuple[str, Any, Any]] = []
+    dataset_params = (resources.get("dataset") or {}).get("params") or {}
+    if "split_stratify_by" in dataset_params:
+        found.append(
+            (
+                "dataset.params.split_stratify_by",
+                dataset_params["split_stratify_by"],
+                _validate_split_stratify_by,
+            ),
+        )
+    partition = resources.get("partition") or {}
+    if "ladder" in partition:
+        found.append(("partition.ladder", partition["ladder"], _validate_ladder))
+    for step in config.get("pipeline") or []:
+        params = step.get("params") or {}
+        if step.get("type") == "validator" and "audit_export" in params:
+            found.append(("validator.audit_export", params["audit_export"], _validate_audit_export))
+    return found
+
+
+def _check_schema2_features(config: dict[str, Any], schema_version: int, path: Path | None) -> None:
+    """Gate schema-2-only params to schema_version 2, then value-validate them.
+
+    Raises:
+        ValueError: If any schema-2 feature appears under schema_version 1
+            (naming the feature and the required version), or if a present
+            feature's value is malformed.
+    """
+    features = _collect_schema2_features(config)
+    if schema_version == 1 and features:
+        source = f" (file: {path})" if path is not None else ""
+        names = ", ".join(name for name, _, _ in features)
+        raise ValueError(
+            f"config declares schema_version 1 but uses schema-2-only feature(s) [{names}]"
+            f"{source}; set schema_version 2 (see specs/v2/README.md 'schema_version 2 -- "
+            "canonical trigger list')"
+        )
+    for _name, value, validate in features:
+        validate(value)
 
 
 def validate_config(config: dict[str, Any], *, path: Path | None = None) -> list[str]:
@@ -127,6 +257,8 @@ def validate_config(config: dict[str, Any], *, path: Path | None = None) -> list
     for key in ("resources", "pipeline", "artifacts_dir"):
         if key not in config:
             raise ValueError(f"config is missing the required '{key}' block")
+
+    _check_schema2_features(config, schema_version, path)
 
     resources = config["resources"]
     from ragsynth.adapters.embedder.base import EMBEDDERS
@@ -239,6 +371,9 @@ def build_resources(config: dict[str, Any]) -> Resources:
     train_embs = store.get([q.query_id for q in bundle.queries_train]).astype(np.float64)
 
     partition_cfg = {**_DEFAULT_PARTITION, **(resources_cfg.get("partition") or {})}
+    # partition.ladder (schema-2, D37) is validated + round-tripped but not yet
+    # consulted here: the C-ladder selection is second-half runtime work, so the
+    # fixed n_clusters is used for now (spec01 §8 ACCEPT/VALIDATE/STORE only).
     partition = ReferencePartition.fit(
         train_embs, n_clusters=int(partition_cfg["n_clusters"]), seed=seed
     )

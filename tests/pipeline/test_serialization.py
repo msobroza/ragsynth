@@ -170,3 +170,132 @@ def test_build_resources_deterministic(tmp_path: Path, tiny_config: dict[str, An
     r2 = build_resources(cfg2)
     np.testing.assert_array_equal(r1.demand.p_hat, r2.demand.p_hat)
     np.testing.assert_array_equal(r1.demand.movmf_demand, r2.demand.movmf_demand)
+
+
+# --- schema-2 feature gating (spec01 §8; v2 README canonical trigger list) ------------
+
+
+def _cached(model: str) -> dict[str, Any]:
+    """A `cached` chat block wrapping an openai_compatible backend at ``model``."""
+    return {
+        "type": "cached",
+        "params": {
+            "mode": "record",
+            "transcript_path": "t.jsonl",
+            "backend": {
+                "type": "openai_compatible",
+                "params": {"base_url": "${RAGSYNTH_LLM_BASE_URL}", "model": model},
+            },
+        },
+    }
+
+
+def test_split_stratify_by_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    tiny_config["resources"]["dataset"]["params"] = {"split_stratify_by": "subcorpus"}
+    with pytest.raises(ValueError, match=r"split_stratify_by.*schema_version 2"):
+        validate_config(tiny_config)
+
+
+def test_partition_ladder_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    tiny_config["resources"]["partition"] = {
+        "n_clusters": 8,
+        "ladder": {"candidates": [8, 6, 4, 2], "min_per_side": 30},
+    }
+    with pytest.raises(ValueError, match=r"partition\.ladder.*schema_version 2"):
+        validate_config(tiny_config)
+
+
+def test_validator_audit_export_under_schema_1_raises(tiny_config: dict[str, Any]) -> None:
+    tiny_config["pipeline"].append(
+        {
+            "type": "validator",
+            "params": {
+                "arms": ["a2", "oracle"],
+                "audit_export": {"n": 160, "arm": "a2", "stratify": ["cluster", "stratum"]},
+            },
+        }
+    )
+    with pytest.raises(ValueError, match=r"validator\.audit_export.*schema_version 2"):
+        validate_config(tiny_config)
+
+
+def test_schema_2_features_accepted_and_validated(tiny_config: dict[str, Any]) -> None:
+    tiny_config["ragsynth"]["schema_version"] = 2
+    tiny_config["resources"]["dataset"]["params"] = {"split_stratify_by": "subcorpus"}
+    tiny_config["resources"]["partition"] = {
+        "n_clusters": 8,
+        "ladder": {"candidates": [8, 6, 4, 2], "min_per_side": 30},
+    }
+    tiny_config["pipeline"].append(
+        {
+            "type": "validator",
+            "params": {
+                "arms": ["a2", "oracle"],
+                "audit_export": {"n": 160, "arm": "a2", "stratify": ["cluster", "stratum"]},
+            },
+        }
+    )
+    # Valid schema-2 features must not raise.
+    validate_config(tiny_config)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda c: c["resources"]["dataset"]["params"].__setitem__("split_stratify_by", 3), "str"),
+        (
+            lambda c: c["resources"]["partition"].__setitem__(
+                "ladder", {"candidates": [], "min_per_side": 30}
+            ),
+            "candidates",
+        ),
+        (
+            lambda c: c["resources"]["partition"].__setitem__(
+                "ladder", {"candidates": [8, 6], "min_per_side": 0}
+            ),
+            "min_per_side",
+        ),
+        (
+            lambda c: c["pipeline"].append(
+                {"type": "validator", "params": {"audit_export": {"n": -1, "arm": "a2"}}}
+            ),
+            "n",
+        ),
+    ],
+)
+def test_schema_2_feature_value_validation(
+    tiny_config: dict[str, Any], mutate: Any, match: str
+) -> None:
+    tiny_config["ragsynth"]["schema_version"] = 2
+    tiny_config["resources"]["dataset"].setdefault("params", {})
+    mutate(tiny_config)
+    with pytest.raises(ValueError, match=match):
+        validate_config(tiny_config)
+
+
+def test_cross_family_sees_through_cached_wrappers(
+    tiny_config: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    """Generator and judge both Qwen behind `cached` wrappers ⇒ same-family warns (D39)."""
+    tiny_config["ragsynth"]["schema_version"] = 2
+    tiny_config["resources"]["generator_llm"] = _cached("Qwen/Qwen2.5-7B-Instruct")
+    tiny_config["resources"]["judge_llm"] = {
+        "type": "llm",
+        "params": {"chat": _cached("Qwen/Qwen2.5-7B-Instruct"), "prompt_version": "judge_v1"},
+    }
+    with caplog.at_level(logging.WARNING):
+        warnings = validate_config(tiny_config)
+    assert any("model family" in w for w in warnings)
+    assert any("SIGIR 2025" in r.message for r in caplog.records)
+
+
+def test_cross_family_quiet_for_distinct_families_behind_cached(
+    tiny_config: dict[str, Any],
+) -> None:
+    tiny_config["ragsynth"]["schema_version"] = 2
+    tiny_config["resources"]["generator_llm"] = _cached("Qwen/Qwen2.5-7B-Instruct")
+    tiny_config["resources"]["judge_llm"] = {
+        "type": "llm",
+        "params": {"chat": _cached("meta-llama/Llama-3.1-8B-Instruct")},
+    }
+    assert validate_config(tiny_config) == []

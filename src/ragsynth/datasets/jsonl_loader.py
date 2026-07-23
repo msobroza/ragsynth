@@ -101,6 +101,23 @@ def load_queries(path: Path | str) -> list[ProductionQuery]:
     return queries
 
 
+def load_query_metadata(path: Path | str) -> list[dict[str, str]]:
+    """Load per-query ``metadata`` maps from a ``queries.jsonl``, in file order.
+
+    Additive companion to :func:`load_queries` (which stays metadata-free so its
+    ``ProductionQuery`` bytes are unchanged): the returned list aligns index-for
+    -index with ``load_queries`` and carries each row's ``metadata`` object with
+    keys/values coerced to ``str`` (missing ``metadata`` ⇒ ``{}``). The
+    ``jsonl`` dataset uses it for the schema-2 ``split_stratify_by`` stratified
+    split (spec01 §6, D36); v1 callers never touch it.
+
+    Raises:
+        FileNotFoundError: If ``path`` does not exist.
+    """
+    rows = _read_jsonl(Path(path), "queries")
+    return [{str(k): str(v) for k, v in row.get("metadata", {}).items()} for row in rows]
+
+
 def load_anchor_qrels(path: Path | str) -> dict[str, dict[str, int]]:
     """Load anchor relevance judgments from JSONL.
 
@@ -121,6 +138,41 @@ def load_anchor_qrels(path: Path | str) -> dict[str, dict[str, int]]:
     }
 
 
+_Split = tuple[
+    tuple[ProductionQuery, ...],
+    tuple[ProductionQuery, ...],
+    tuple[ProductionQuery, ...],
+]
+
+
+def _split_rng(seed: int, group_key: str | None = None) -> np.random.Generator:
+    """The PLAN D10 split substream, optionally forked per stratification group.
+
+    ``group_key is None`` reproduces the v1 substream exactly
+    (``[seed, hash("jsonl_split")]``); a group key appends a third,
+    key-derived word so each stratum permutes on its own independent stream
+    (adding/removing a sub-corpus never reshuffles the others).
+    """
+    words = [seed, stable_hash64("jsonl_split")]
+    if group_key is not None:
+        words.append(stable_hash64(group_key))
+    return np.random.default_rng(words)
+
+
+def _permute_split(
+    queries: list[ProductionQuery], split: tuple[float, ...], rng: np.random.Generator
+) -> _Split:
+    """Seeded 60/25/15 permutation of ``queries`` (PLAN D10), floor-partitioned."""
+    shuffled = [queries[int(i)] for i in rng.permutation(len(queries))]
+    n_train = int(split[0] * len(queries))
+    n_anchor = int(split[1] * len(queries))
+    return (
+        tuple(shuffled[:n_train]),
+        tuple(shuffled[n_train : n_train + n_anchor]),
+        tuple(shuffled[n_train + n_anchor :]),
+    )
+
+
 @DATASETS.register("jsonl")
 class JsonlDataset:
     """Local JSONL corpus: the first-real-run dataset (SPEC §10)."""
@@ -132,9 +184,16 @@ class JsonlDataset:
         Args:
             params: ``chunks_path``, ``queries_path``, optional
                 ``anchor_qrels_path``, optional ``split`` fractions
-                (default 0.60/0.25/0.15, PLAN D10).
+                (default 0.60/0.25/0.15, PLAN D10), and the optional
+                schema-2 ``split_stratify_by`` metadata key (spec01 §6, D36).
             seed: Config seed; the split uses the substream
                 ``[seed, stable_hash64("jsonl_split")]``.
+
+        The optional ``split_stratify_by`` (schema-2 only; the loader is
+        schema-agnostic, so version gating lives in ``validate_config``)
+        applies the same permutation PER GROUP of
+        ``load_query_metadata()[key]`` and concatenates the groups in
+        sorted-key order. Absent ⇒ byte-identical v1 behavior.
 
         Returns:
             A :class:`DatasetBundle` with ``embeddings``/``bank`` left
@@ -142,23 +201,25 @@ class JsonlDataset:
 
         Raises:
             FileNotFoundError: If a referenced file does not exist.
-            ValueError: If ``split`` is not three fractions summing to 1.
+            ValueError: If ``split`` is not three fractions summing to 1, or a
+                query is missing the ``split_stratify_by`` metadata key.
         """
         chunks = tuple(load_chunks(str(params["chunks_path"])))
-        queries = load_queries(str(params["queries_path"]))
+        queries_path = str(params["queries_path"])
+        queries = load_queries(queries_path)
         split = tuple(float(f) for f in params.get("split", _DEFAULT_SPLIT))
         if len(split) != _SPLIT_PARTS or abs(sum(split) - 1.0) > _SPLIT_SUM_TOL:
             raise ValueError(
                 f"split must be three train/anchor/oracle fractions summing to 1.0, got {split}"
             )
 
-        rng = np.random.default_rng([seed, stable_hash64("jsonl_split")])
-        shuffled = [queries[int(i)] for i in rng.permutation(len(queries))]
-        n_train = int(split[0] * len(queries))
-        n_anchor = int(split[1] * len(queries))
-        train = tuple(shuffled[:n_train])
-        anchor = tuple(shuffled[n_train : n_train + n_anchor])
-        oracle = tuple(shuffled[n_train + n_anchor :])
+        stratify_by = params.get("split_stratify_by")
+        if stratify_by is None:
+            train, anchor, oracle = _permute_split(queries, split, _split_rng(seed))
+        else:
+            train, anchor, oracle = cls._stratified_split(
+                queries, load_query_metadata(queries_path), str(stratify_by), split, seed
+            )
 
         anchor_qrels: dict[str, dict[str, int]] = {}
         qrels_path = params.get("anchor_qrels_path")
@@ -186,3 +247,33 @@ class JsonlDataset:
             embeddings=None,
             bank=None,
         )
+
+    @staticmethod
+    def _stratified_split(
+        queries: list[ProductionQuery],
+        metadata: list[dict[str, str]],
+        stratify_by: str,
+        split: tuple[float, ...],
+        seed: int,
+    ) -> _Split:
+        """Per-group 60/25/15 split, concatenated in sorted-group-key order (D36)."""
+        groups: dict[str, list[ProductionQuery]] = {}
+        for query, meta in zip(queries, metadata, strict=True):
+            if stratify_by not in meta:
+                raise ValueError(
+                    f"split_stratify_by={stratify_by!r} but query {query.query_id!r} has no "
+                    f"{stratify_by!r} in its metadata; every query must carry the stratify key "
+                    "(the converter emits metadata.subcorpus -- see spec01 D36)"
+                )
+            groups.setdefault(meta[stratify_by], []).append(query)
+        train: list[ProductionQuery] = []
+        anchor: list[ProductionQuery] = []
+        oracle: list[ProductionQuery] = []
+        for group_key in sorted(groups):
+            g_train, g_anchor, g_oracle = _permute_split(
+                groups[group_key], split, _split_rng(seed, group_key)
+            )
+            train.extend(g_train)
+            anchor.extend(g_anchor)
+            oracle.extend(g_oracle)
+        return tuple(train), tuple(anchor), tuple(oracle)
