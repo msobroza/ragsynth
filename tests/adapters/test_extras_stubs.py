@@ -6,7 +6,12 @@ import pytest
 
 
 def _has(module: str) -> bool:
-    return importlib.util.find_spec(module) is not None
+    try:
+        return importlib.util.find_spec(module) is not None
+    except ModuleNotFoundError:
+        # find_spec on a dotted name raises (rather than returning None) when
+        # the parent package itself isn't importable.
+        return False
 
 
 def test_adapter_packages_import_without_extras() -> None:
@@ -15,6 +20,7 @@ def test_adapter_packages_import_without_extras() -> None:
 
     assert hasattr(ragsynth.adapters.retriever, "BM25sRetriever")
     assert hasattr(ragsynth.adapters.embedder, "SentenceTransformerEmbedder")
+    assert hasattr(ragsynth.adapters.embedder, "GeminiEmbedder")
 
 
 def test_registered_even_without_extras() -> None:
@@ -23,6 +29,7 @@ def test_registered_even_without_extras() -> None:
 
     assert "bm25s" in RETRIEVERS.keys()  # noqa: SIM118
     assert "sentence_transformer" in EMBEDDERS.keys()  # noqa: SIM118
+    assert "gemini" in EMBEDDERS.keys()  # noqa: SIM118
 
 
 def test_bm25s_retriever_without_extra_raises_actionable_import_error() -> None:
@@ -41,6 +48,15 @@ def test_st_embedder_without_extra_raises_actionable_import_error() -> None:
 
     with pytest.raises(ImportError, match=r"uv sync --extra st"):
         SentenceTransformerEmbedder()
+
+
+def test_gemini_embedder_without_extra_raises_actionable_import_error() -> None:
+    if _has("google.genai"):
+        pytest.skip("gemini extra installed; missing-extra path untestable")
+    from ragsynth.adapters.embedder.gemini import GeminiEmbedder
+
+    with pytest.raises(ImportError, match=r"uv sync --extra gemini"):
+        GeminiEmbedder()
 
 
 def test_bm25s_search_requires_text_queries_when_installed() -> None:

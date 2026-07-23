@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +26,33 @@ _ALLOWED_SCHEMES = ("http://", "https://")
 _DEFAULT_TEMPERATURE = 0.7
 _DEFAULT_MAX_TOKENS = 512
 _DEFAULT_TIMEOUT_S = 60.0
+_ENV_PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
+
+
+def _interpolate_env(value: str) -> str:
+    """Resolve ``${VAR}`` placeholders in ``value`` from the environment (SPEC §15.4).
+
+    Only string config values pass through here (currently ``base_url``); the
+    unresolved placeholder is what ``to_config`` serializes, so secrets and
+    per-host endpoints never land in a committed config.
+
+    Raises:
+        RuntimeError: If any referenced environment variable is unset/empty,
+            with the variable name and an ``export`` hint.
+    """
+
+    def _resolve(match: re.Match[str]) -> str:
+        var = match.group(1)
+        resolved = os.environ.get(var)
+        if not resolved:
+            raise RuntimeError(
+                f"environment variable {var!r} referenced in config as ${{{var}}} "
+                f"is not set; export it before constructing the adapter "
+                f"(e.g. `export {var}=...`)"
+            )
+        return resolved
+
+    return _ENV_PLACEHOLDER.sub(_resolve, value)
 
 
 @CHAT_MODELS.register("openai_compatible")
@@ -45,9 +73,11 @@ class OpenAICompatibleChat:
         max_tokens: int = _DEFAULT_MAX_TOKENS,
         timeout: float = _DEFAULT_TIMEOUT_S,
     ) -> None:
-        if not base_url.startswith(_ALLOWED_SCHEMES):
-            raise ValueError(f"base_url must start with http:// or https://, got {base_url!r}")
-        self.base_url = base_url.rstrip("/")
+        self._base_url_config = base_url  # unresolved; what to_config serializes (§15.4)
+        resolved = _interpolate_env(base_url)
+        if not resolved.startswith(_ALLOWED_SCHEMES):
+            raise ValueError(f"base_url must start with http:// or https://, got {resolved!r}")
+        self.base_url = resolved.rstrip("/")
         self.model = model
         self.api_key_env = api_key_env
         self.temperature = temperature
@@ -114,9 +144,13 @@ class OpenAICompatibleChat:
         return str(data["choices"][0]["message"]["content"])
 
     def to_config(self) -> dict[str, Any]:
-        """JSON-safe constructor params (env var *name* only, never the key)."""
+        """JSON-safe constructor params (env var *name* only, never the key).
+
+        ``base_url`` is returned UNRESOLVED: any ``${VAR}`` placeholder is
+        serialized verbatim so configs stay portable and secret-free (§15.4).
+        """
         return {
-            "base_url": self.base_url,
+            "base_url": self._base_url_config,
             "model": self.model,
             "api_key_env": self.api_key_env,
             "temperature": self.temperature,

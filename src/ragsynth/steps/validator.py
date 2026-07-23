@@ -59,6 +59,10 @@ class Validator(PipelineStep):
     pipeline's accepted set (no double generation, PLAN D9); every other
     requested arm is generated fresh through its preset with
     ``arm_params[arm]`` merged over the preset defaults.
+
+    ``audit_export`` (schema-2, spec01 §11/D38) is ACCEPTED, STORED, and
+    ROUND-TRIPPED here only; writing ``audit/audit_sample.csv`` is the
+    second-half runtime work and is explicitly NOT implemented in this step yet.
     """
 
     name = "validator"
@@ -75,6 +79,7 @@ class Validator(PipelineStep):
         arm_params: dict[str, dict[str, Any]] | None = None,
         controls: dict[str, float] | None = None,
         wc2st_min_per_side: int = 30,
+        audit_export: dict[str, Any] | None = None,
     ) -> None:
         self._resources = resources
         self.arms = list(arms)
@@ -86,6 +91,8 @@ class Validator(PipelineStep):
         self.arm_params = {key: dict(val) for key, val in (arm_params or {}).items()}
         self.controls = {**_DEFAULT_CONTROLS, **(controls or {})}
         self.wc2st_min_per_side = wc2st_min_per_side
+        # Stored for config round-trip only; the CSV writer is out of scope here.
+        self.audit_export = dict(audit_export) if audit_export is not None else None
 
     # ---- record collection -------------------------------------------------
 
@@ -374,7 +381,7 @@ class Validator(PipelineStep):
 
     def to_config(self) -> dict[str, Any]:
         """JSON-safe constructor params."""
-        return {
+        config: dict[str, Any] = {
             "arms": self.arms,
             "n_boot": self.n_boot,
             "gates": self.gates,
@@ -385,6 +392,9 @@ class Validator(PipelineStep):
             "controls": self.controls,
             "wc2st_min_per_side": self.wc2st_min_per_side,
         }
+        if self.audit_export is not None:
+            config["audit_export"] = self.audit_export
+        return config
 
     @classmethod
     def from_config(cls, config: dict[str, Any], resources: Resources) -> Self:

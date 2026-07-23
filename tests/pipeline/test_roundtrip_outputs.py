@@ -54,3 +54,18 @@ def test_yaml_round_trip_identical_config_and_outputs(tmp_path: Path) -> None:
     pipeline_c.run(make_initial_state(yaml.safe_load(regenerated)))
     second = (tmp_path / "exp" / "metrics.json").read_bytes()
     assert first == second
+
+
+def test_schema_version_2_round_trips_through_pipeline_from_yaml(tmp_path: Path) -> None:
+    """schema_version 2 configs load via Pipeline.from_yaml and preserve 2 (v2 README §8)."""
+    config = toy_config(tmp_path)
+    config["ragsynth"] = {**config["ragsynth"], "schema_version": 2}
+    path = tmp_path / "v2_config.yaml"
+    path.write_text(dump_config(config))
+
+    pipeline, _resources = Pipeline.from_yaml(path)
+    state = make_initial_state(yaml.safe_load(path.read_text()))
+    assert state.provenance["config"]["ragsynth"]["schema_version"] == 2
+
+    regenerated = pipeline.to_yaml()
+    assert yaml.safe_load(regenerated)["ragsynth"]["schema_version"] == 2

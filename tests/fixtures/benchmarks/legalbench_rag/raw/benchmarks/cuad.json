@@ -1,0 +1,26 @@
+[
+  {
+    "query": "Who are the contracting parties?",
+    "snippets": [
+      {
+        "file_path": "cuad/doc_c.txt",
+        "span": [
+          0,
+          10
+        ]
+      }
+    ]
+  },
+  {
+    "query": "What law governs the agreement?",
+    "snippets": [
+      {
+        "file_path": "cuad/doc_d.txt",
+        "span": [
+          0,
+          10
+        ]
+      }
+    ]
+  }
+]

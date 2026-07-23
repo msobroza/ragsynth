@@ -53,7 +53,7 @@ Decision numbers D32–D41 allocated per specs/v2/README.md.
 - **D36 · Legal sub-corpora merged.** CUAD + ContractNLI + MAUD + PrivacyQA form ONE corpus (`metadata.subcorpus` on every chunk/query); the 60/25/15 split is stratified per sub-corpus; the report carries a per-sub-corpus τ appendix. One dataset ⇒ one report (three reports total).
 - **D37 · Cluster-count ladder.** Default `C=8`. Before arms run, pick the largest `C ∈ {8, 6, 4, 2}` such that (a) every cluster holds ≥ 30 anchor queries AND (b) expected **seed** allocation `n_seeds · q_c ≥ 30` per cluster, where `n_seeds = 240` (the ladder reads it from the §8 sampler config) and `q_c = λ·p̂_c + (1−λ)/C` (λ=0.7) — evaluated *a priori* and deterministically. Arithmetic, so the rule is auditable: (b) ⇔ `q_c ≥ 30/240 = 0.125` ⇔ `min_c p̂_c ≥ (0.125 − 0.3/C)/0.7`; C=8 needs `min_c p̂_c ≥ 0.125` (exactly uniform 1/8 — any demand skew fails); C=6 needs `≥ 0.1071` (64% of uniform 1/6); C=4 needs `≥ 0.0714` (29% of uniform 1/4); C=2 has a negative bound (0.3/2 = 0.15 ≥ 0.125 even at `p̂_c = 0`, so (b) always passes; only (a) can fail it). Basis is deliberately seeds, not `n_per_arm = 160`: `160 · q_c ≥ 30` would need `q_c ≥ 0.1875 > 1/6 ≥ min_c q_c`, making every `C ≥ 6` impossible even under perfectly uniform demand (160/6 ≈ 26.7 < 30). (b) is a necessary a-priori proxy, not a guarantee: a stratum may still end with < 30 curated records at runtime, in which case the v1 SPEC §8 wC2ST 30/side floor rule applies as shipped (stratum flagged and skipped; run continues). Chosen `C` is recorded in `metrics.json` and the report header. Expected outcome under this rule: FiQA C=4 (genuine user demand is skewed — a smallest cluster below 64% of uniform mass kills C=6, while 29% of uniform is plausible), NFCorpus C=4–6 (editorial queries authored to cover the corpus ⇒ flatter p̂ may clear the C=6 bar), legal C=2–4 (heterogeneous sub-corpora ⇒ strong cluster imbalance).
 - **D38 · n_per_arm = 160** (within the 150–200 §16 band). The curated A2 set doubles as the human precision-audit sample (§11).
-- **D39 · Models.** Embedder: `sentence-transformers/all-MiniLM-L6-v2` via the existing `sentence_transformer` registry key (`st` extra; model download is data, Apache-2.0, documented). Generator: `Qwen/Qwen2.5-7B-Instruct`; judge: `meta-llama/Llama-3.1-8B-Instruct` — different families, so the §6.4 same-family warning stays quiet *by construction*, verified by a config test. Both via the existing `openai_compatible` adapter.
+- **D39 · Models.** Embedder: `sentence-transformers/all-MiniLM-L6-v2` via the existing `sentence_transformer` registry key (`st` extra; model download is data, Apache-2.0, documented). Generator: `Qwen/Qwen2.5-7B-Instruct`; judge: `meta-llama/Llama-3.1-8B-Instruct` — different families, so the §6.4 same-family warning stays quiet *by construction*, verified by a config test. Both via the existing `openai_compatible` adapter. *(Embedder superseded by D39-A / Amendment A1 below: v2 configs ship `gemini-embedding-2` behind `cached_chroma`; MiniLM remains available as fallback.)*
 - **D40 · Determinism boundary = transcript replay.** New `cached` ChatModel wrapper (§7): first run records request-hash→response transcripts; replay runs never touch the network. Same seed + same transcripts ⇒ identical `metrics.json`. Live first-run responses are NOT deterministic — this is the explicit, documented exception; everything downstream of the transcripts is.
 - **D41 · No time-decay.** None of the three benchmarks has query timestamps ⇒ demand half-life decay is off (uniform recency weights). Stated as a threat in §9.
 
@@ -127,7 +127,7 @@ class CachedChatModel:
 ```
 
 - Generator and judge each get their own transcript file. CI/tests wrap `mock` backends to prove the contract without network.
-- Embeddings: the existing `EmbeddingStore` artifact caches the MiniLM matrix per (model, corpus-hash); embedding runs once per dataset.
+- Embeddings: the existing `EmbeddingStore` artifact caches the MiniLM matrix per (model, corpus-hash); embedding runs once per dataset. *(Superseded by Amendment A1: shipped v2 configs cache through `cached_chroma`, a ChromaDB-backed collection keyed on the embedder id, not this `EmbeddingStore`/MiniLM path.)*
 - The §6.4 cross-family warning must NOT fire on any v2 config (D39); a test loads all three configs and asserts zero warnings.
 
 ---
@@ -155,14 +155,18 @@ resources:
       backend: {type: openai_compatible,
                 params: {base_url: "${RAGSYNTH_LLM_BASE_URL}", model: Qwen/Qwen2.5-7B-Instruct,
                          api_key_env: RAGSYNTH_LLM_API_KEY, temperature: 0.7}}
-  judge_llm:
-    type: cached
+  judge_llm:                # judge_llm.type: llm (JUDGES key) wrapping a `chat: {type: cached}` (Amendment A1)
+    type: llm
     params:
-      mode: record
-      transcript_path: data/benchmarks/fiqa/transcripts/judge.jsonl
-      backend: {type: openai_compatible,
-                params: {base_url: "${RAGSYNTH_LLM_BASE_URL}", model: meta-llama/Llama-3.1-8B-Instruct,
-                         api_key_env: RAGSYNTH_LLM_API_KEY, temperature: 0.0}}
+      prompt_version: judge_v1
+      chat:
+        type: cached
+        params:
+          mode: record
+          transcript_path: data/benchmarks/fiqa/transcripts/judge.jsonl
+          backend: {type: openai_compatible,
+                    params: {base_url: "${RAGSYNTH_LLM_BASE_URL}", model: meta-llama/Llama-3.1-8B-Instruct,
+                             api_key_env: RAGSYNTH_LLM_API_KEY, temperature: 0.0}}
   retriever: {type: dense_inmemory}
   partition: {n_clusters: 8, ladder: {candidates: [8, 6, 4, 2], min_per_side: 30}}   # D37 — (b) evaluated on n_seeds from the sampler
   demand: {n_components: 8, lam: 0.7, tau_r_pct: 5.0}
@@ -268,3 +272,73 @@ uv run ragsynth run --config configs/v1_toy.yaml       # v1 regression
 4. `${RAGSYNTH_LLM_BASE_URL}` env interpolation in configs: only inside `openai_compatible` params, resolved at adapter construction (never serialized resolved). Default: yes, minimal.
 5. Legal `n_seeds` if a sub-corpus is too small to fill quotas: let the existing `n_min` floor handle it; do not special-case. Default: yes.
 6. Judge temperature 0.0 / generator 0.7 (shown in §8): keep; both recorded in transcripts so replay is exact either way.
+
+---
+
+## Amendment A1 (2026-07-23)
+
+Recorded per PLAN.md D39-A (user-directed) and the Task 7 controller adjudication.
+This section is the authoritative override; §3/§7/§8 above are annotated with
+one-line pointers to here but are otherwise left as originally written (v1-style
+history discipline — do not relitigate, do not rewrite).
+
+**A1.1 Embedder deviation (supersedes D39's embedder half).** v2's default
+embedder is `gemini-embedding-2` (Google `google-genai`, `output_dimensionality:
+768`, key in `GEMINI_API_KEY`) behind the `cached_chroma` cache: a ChromaDB
+collection named `emb_<sha256(embedder_id)[:12]>_<dataset>`, with metadata
+recording `embedder_id`, `dataset`, and `dim`. `sentence-transformers/all-MiniLM-L6-v2`
+(D39 as written, `sentence_transformer` registry key, `st` extra) remains
+available as a fallback embedder — nothing about the `st` path is removed.
+
+Rationale: avoids re-running an embedding model over the full corpus on every
+rerun (FiQA alone is ~65K texts) — the ChromaDB cache makes embedding a
+one-time cost per (embedder, dataset) pair, mirroring D40's transcript-replay
+philosophy for the embedding side of the pipeline. Batch embedding via a
+Batch API (~50% cost) is left as a future option, not built here.
+
+Embedding determinism boundary (extends §12): the **cached vectors are the
+artifact** — once a `cached_chroma` collection exists for an (embedder_id,
+dataset) pair, every run reads it and is byte-deterministic downstream. Live
+re-embedding (a cache miss, or a new embedder_id) is the explicit, documented
+non-deterministic exception, exactly as D40 treats a live first-run LLM call.
+
+**A1.2 `judge_llm` shape correction (structural, not a decision reversal).**
+§8's literal YAML `judge_llm: {type: cached, params: {...}}` cannot validate:
+`judge_llm.type` resolves through the `JUDGES` registry (`RelevanceJudge`
+Protocol, method `.judge()`), and `cached` is a `CHAT_MODELS` key (`ChatModel`
+Protocol, method `.complete()`) — registry protocols don't unify the two. The
+shipped, working form (already in `configs/v2_*.yaml` and now reflected in
+§8's YAML block above) is:
+
+```yaml
+judge_llm:
+  type: llm
+  params:
+    prompt_version: judge_v1
+    chat:
+      type: cached
+      params:
+        mode: record
+        transcript_path: data/benchmarks/<name>/transcripts/judge.jsonl
+        backend: {type: openai_compatible, params: {...meta-llama/Llama-3.1-8B-Instruct...}}
+```
+
+`judge_llm.type: llm` is `LLMJudge` (a `RelevanceJudge`), which holds its own
+`chat: ChatModel` — that inner `chat` block is where `cached` (a `ChatModel`)
+nests correctly. The **generator** keeps the bare `cached` wrapper as §8
+originally showed (`generator_llm.type: cached` directly, no `llm`/`chat`
+indirection needed — `ChatModel` is exactly what `generator_llm` wants).
+
+This is a shape correction, not a semantic one: the intent (Qwen generator,
+Llama judge, both transcript-replayed, cross-family so §6.4 stays quiet) is
+unchanged; only the config nesting needed to satisfy the registries changed.
+
+**A1.3 Schema-2 gating applies to every `cached` shape.** Per the canonical
+schema-2 trigger list (specs/v2/README.md), `generator_llm.type: cached`
+requires `schema_version: 2`. This amendment clarifies that the *same* gate
+covers all three shapes a `cached` transcript wrapper can appear in: (a) a
+bare `generator_llm.type: cached` / `judge_llm.type: cached` (the latter is
+§8's original, now-corrected shorthand), and (b) the nested `judge_llm.params.chat.type:
+cached` shape from A1.2. A schema-1 config using any of these fails loudly
+with an actionable error naming the trigger list, rather than a bare
+`RegistryError`.

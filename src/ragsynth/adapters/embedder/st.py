@@ -47,8 +47,17 @@ class SentenceTransformerEmbedder:
         return np.asarray(matrix / norms, dtype=np.float64)
 
     def to_config(self) -> dict[str, Any]:
-        """JSON-safe constructor params."""
-        return {"model_name": self.model_name, "device": self.device}
+        """JSON-safe constructor params, plus the model's embedding ``dim``.
+
+        The dim is resolved lazily from the loaded model so ``cached_chroma``
+        can derive its embedder identity; models that report no dimension keep
+        the bare two-key shape (``from_config`` never requires ``dim``).
+        """
+        config: dict[str, Any] = {"model_name": self.model_name, "device": self.device}
+        dim = self._model.get_sentence_embedding_dimension()
+        if dim is not None:
+            config["dim"] = int(dim)
+        return config
 
     @classmethod
     def from_config(

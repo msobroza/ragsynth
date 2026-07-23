@@ -148,6 +148,19 @@ def test_config_round_trip(min_resources: Resources) -> None:
     assert rebuilt.to_config() == config
 
 
+def test_audit_export_accepted_and_round_trips(min_resources: Resources) -> None:
+    """schema-2 audit_export is stored + round-tripped (runtime writer out of scope)."""
+    audit = {"n": 160, "arm": "a2", "stratify": ["cluster", "stratum"]}
+    step = Validator(min_resources, arms=["a2", "oracle"], n_per_arm=5, audit_export=audit)
+    assert step.audit_export == audit
+    config = step.to_config()
+    assert config["audit_export"] == audit
+    rebuilt = Validator.from_config(config, min_resources)
+    assert rebuilt.to_config() == config
+    # Absent audit_export must not leak an empty key into the config (byte-stability).
+    assert "audit_export" not in Validator(min_resources, arms=["a2"], n_per_arm=5).to_config()
+
+
 def test_validator_registered() -> None:
     from ragsynth.pipeline.base import STEPS
 
