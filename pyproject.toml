@@ -45,6 +45,9 @@ st = [
 gemini = [
     "google-genai>=1.0",
 ]
+chromadb = [
+    "chromadb>=0.5",
+]
 
 [project.scripts]
 ragsynth = "ragsynth.cli:app"
@@ -138,6 +141,7 @@ module = [
     "sentence_transformers.*",
     "google.*",
     "google.genai.*",
+    "chromadb.*",
 ]
 ignore_missing_imports = true
 
