@@ -34,8 +34,10 @@ def test_benchmark_urls_known_datasets() -> None:
     )
 
 
-def test_license_notes_present_for_both_datasets() -> None:
-    assert set(LICENSE_NOTES) == {"fiqa", "nfcorpus"}
+def test_license_notes_present_for_all_datasets() -> None:
+    # legalbench_rag has a license note but no BEIR download URL yet -- its
+    # fetch-time adjustment is a later task (spec01 §5, D36 known assumption).
+    assert set(LICENSE_NOTES) == {"fiqa", "nfcorpus", "legalbench_rag"}
     assert all(isinstance(note, str) and note for note in LICENSE_NOTES.values())
 
 

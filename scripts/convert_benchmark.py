@@ -1,7 +1,7 @@
 r"""Argument-parsing shell over ``ragsynth.datasets.converters.<name>`` (spec01 D32).
 
 Usage:
-    uv run python scripts/convert_benchmark.py <fiqa|nfcorpus> \
+    uv run python scripts/convert_benchmark.py <fiqa|nfcorpus|legalbench_rag> \
         [--raw-dir DIR] [--out-dir DIR]
 
 Defaults: ``--raw-dir data/benchmarks/<name>/raw``,

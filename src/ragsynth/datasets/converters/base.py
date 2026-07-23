@@ -58,6 +58,12 @@ LICENSE_NOTES: dict[str, str] = {
         "NFCorpus (Boteva et al., ECIR 2016) is derived from NutritionFacts.org "
         "content -- non-commercial research use only."
     ),
+    "legalbench_rag": (
+        "LegalBench-RAG (Pipitone & Houir Alami, 2024) merges four sub-corpora "
+        "under their own terms: CUAD CC-BY-4.0 (Atticus/Hendrycks et al.), MAUD "
+        "CC-BY-4.0 (Atticus/Wang et al.), ContractNLI (Koreeda & Manning) and "
+        "PrivacyQA (Ravichander et al.) research releases -- research use only."
+    ),
 }
 
 

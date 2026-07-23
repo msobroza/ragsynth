@@ -1,0 +1,26 @@
+[
+  {
+    "query": "What triggers confidentiality across the whole agreement?",
+    "snippets": [
+      {
+        "file_path": "contractnli/doc_a.txt",
+        "span": [
+          750,
+          1300
+        ]
+      }
+    ]
+  },
+  {
+    "query": "What counts as confidential information?",
+    "snippets": [
+      {
+        "file_path": "contractnli/doc_b.txt",
+        "span": [
+          0,
+          24
+        ]
+      }
+    ]
+  }
+]

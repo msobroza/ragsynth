@@ -2,14 +2,15 @@
 
 from pathlib import Path
 
-from ragsynth.datasets.converters import CONVERTERS, fiqa, nfcorpus
+from ragsynth.datasets.converters import CONVERTERS, fiqa, legalbench_rag, nfcorpus
 from ragsynth.datasets.converters.base import ConversionManifest
 
 
 def test_registry_keys() -> None:
-    assert set(CONVERTERS) == {"fiqa", "nfcorpus"}
+    assert set(CONVERTERS) == {"fiqa", "legalbench_rag", "nfcorpus"}
     assert CONVERTERS["fiqa"] is fiqa
     assert CONVERTERS["nfcorpus"] is nfcorpus
+    assert CONVERTERS["legalbench_rag"] is legalbench_rag
 
 
 def test_every_entry_has_a_name_and_a_convert_callable() -> None:
